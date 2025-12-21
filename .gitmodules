@@ -1,0 +1,7 @@
+[submodule "common_needs"]
+    path = common_needs
+    url = https://github.com/dralexportfolio/common_needs
+
+[submodule "dimensional_analysis"]
+    path = dimensional_analysis
+    url = https://github.com/dralexportfolio/dimensional_analysis
