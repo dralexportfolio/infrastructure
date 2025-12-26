@@ -2,7 +2,7 @@
 ### Import needed general dependencies ###
 ##########################################
 # External modules
-from numpy import float16, float32, float64, float128, int8, int16, int32, int64
+from numpy import float16, float32, float64, int8, int16, int32, int64
 from typing import Any
 
 
@@ -14,7 +14,7 @@ def isNumeric(value_to_check:Any, include_numpy_flag:bool = False) -> bool:
 	# Construct the list of allowed types
 	allowed_types = [float, int]
 	if include_numpy_flag == True:
-		allowed_types += [float16, float32, float64, float128, int8, int16, int32, int64]
+		allowed_types += [float16, float32, float64, int8, int16, int32, int64]
 		
 	# Test if the provided value is of an allowed type
 	allowed_type_flag = type(value) in allowed_types
