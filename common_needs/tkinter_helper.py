@@ -15,7 +15,7 @@ from type_helper import isListWithStringEntries
 ### Define functions for getting paths using file dialog boxes ###
 ##################################################################
 def askDirectory() -> Union[PosixPath, WindowsPath]:
-	# Create a pathlib object refering to an existing local directory (return None if none selected)
+	# Create a pathlib object referring to an existing local directory (return None if none selected)
 	# Make sure a separate tkinter window doesn't open
 	Tk().withdraw()
 	
@@ -31,7 +31,7 @@ def askDirectory() -> Union[PosixPath, WindowsPath]:
 		return Path(directory_str)
 
 def askOpenFilename(allowed_extensions:list = None) -> Union[PosixPath, WindowsPath]:
-	# Create a pathlib object refering to an existing local file (return None if none selected)
+	# Create a pathlib object referring to an existing local file (return None if none selected)
 	# Verify the inputs
 	if allowed_extensions is not None:
 		assert isListWithStringEntries(allowed_extensions, allow_empty_flag = False) == True, "askOpenFilename: If provided, value for 'allowed_extensions' must be a list object with non-empty strings as entries"
@@ -80,7 +80,7 @@ def askOpenFilename(allowed_extensions:list = None) -> Union[PosixPath, WindowsP
 		return Path(filename_str)
 
 def askSaveFilename(allowed_extensions:list = None) -> Union[PosixPath, WindowsPath]:
-	# Create a pathlib object refering to a new local file (return None if none selected)
+	# Create a pathlib object referring to a new local file (return None if none selected)
 	# Verify the inputs
 	if allowed_extensions is not None:
 		assert isListWithStringEntries(allowed_extensions, allow_empty_flag = False) == True, "askSaveFilename: If provided, value for 'allowed_extensions' must be a list object with non-empty strings as entries"

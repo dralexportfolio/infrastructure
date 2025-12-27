@@ -17,7 +17,7 @@ def isNumeric(value_to_check:Any, include_numpy_flag:bool = False) -> bool:
 		allowed_types += [float16, float32, float64, int8, int16, int32, int64]
 		
 	# Test if the provided value is of an allowed type
-	allowed_type_flag = type(value) in allowed_types
+	allowed_type_flag = type(value_to_check) in allowed_types
 		
 	# Return the results
 	return allowed_type_flag
