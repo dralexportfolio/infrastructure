@@ -9,8 +9,10 @@ from sys import path
 parent_folder = Path(__file__).parent.parent
 # Add the needed paths
 path.insert(0, str(parent_folder.joinpath("common_needs")))
+path.insert(0, str(parent_folder.joinpath("dimensional_analysis")))
 
 # Internal modules
+from dimension_reduction import performPCA
 from tkinter_helper import askSaveFilename
 from type_helper import isNumeric
 
@@ -31,7 +33,7 @@ from typing import Any, Tuple
 ### Define the 2-dimensional vector field class ###
 ###################################################
 # Define a wrapper function so that the class can use multiprocessing to compute vectors
-def proxyComputeVector(payload:Tuple[Any, Tuple[int, int]]) -> Tuple[float, float]:
+def _proxyComputeVector(payload:Tuple[Any, Tuple[int, int]]) -> Tuple[float, float]:
 	# Allow for computation of all vectors in the field to be computed in parallel
 	# Extract the needed values
 	vector_field = payload[0]
@@ -45,7 +47,7 @@ def proxyComputeVector(payload:Tuple[Any, Tuple[int, int]]) -> Tuple[float, floa
 	return vector_field.computeVector(row_index = row_index, col_index = col_index)
 
 # Define a wrapper function so that the class can use multiprocessing to compute curl and divergence
-def proxyComputeCurlDivergence(payload:Tuple[Any, Tuple[int, int]]) -> Tuple[float, float]:
+def _proxyComputeCurlDivergence(payload:Tuple[Any, Tuple[int, int]]) -> Tuple[float, float]:
 	# Allow for computation of all curl and divergence values in the field to be computed in parallel
 	# Extract the needed values
 	vector_field = payload[0]
@@ -65,15 +67,15 @@ vector_field_2d_decorator = private_attributes_dec("_all_base_vector_locations_c
 												   "_all_base_vectors_y",
 												   "_all_curls",
 												   "_all_divergences",
-												   "_all_generated_flag",
 												   "_all_vectors_x",
 												   "_all_vectors_y",
-												   "_base_generated_flag",
-												   "_curl_divergence_generated_flag",
+												   "_base_vectors_generated_flag",
+												   "_curl_divergence_computed_flag",
 												   "_n_base_vectors",
 												   "_n_cols",
 												   "_n_rows",
 												   "_overwrites",
+												   "_remaining_vectors_computed_flag",
 												   "_seed",
 												   "_softmax_normalizer",
 												   "_getValue")							# internal functions
@@ -129,12 +131,12 @@ class VectorField2D:
 		self._all_base_vectors_y = None
 		self._all_curls = None
 		self._all_divergences = None
-		self._all_generated_flag = False
 		self._all_vectors_x = None
 		self._all_vectors_y = None
-		self._base_generated_flag = False
-		self._curl_divergence_generated_flag = False
+		self._base_vectors_generated_flag = False
+		self._curl_divergence_computed_flag = False
 		self._n_base_vectors = None
+		self._remaining_vectors_computed_flag = False
 		self._seed = None
 		self._softmax_normalizer = None
 
@@ -155,10 +157,10 @@ class VectorField2D:
 		assert type(seed) == int, "VectorField2D::generateBaseVectors: Provided value for 'seed' must be a int object"
 		assert 0 <= seed and seed < 2**32, "VectorField2D::generateBaseVector: Provided value for 'seed' must be >= 0 and < 2^32"
 
-		# Mark that needed information has not been generated
-		self._base_generated_flag = False
-		self._all_generated_flag = False
-		self._curl_divergence_generated_flag = False
+		# Mark that needed information has not been handled
+		self._base_vectors_generated_flag = False
+		self._remaining_vectors_computed_flag = False
+		self._curl_divergence_computed_flag = False
 
 		# Set the random seed (if needed)
 		if seed is not None:
@@ -201,7 +203,7 @@ class VectorField2D:
 			self._all_base_vector_locations_col[base_vector_index] = base_vector_col
 
 		# Mark that the base vectors have been generated
-		self._base_generated_flag = True
+		self._base_vectors_generated_flag = True
 
 	def computeVector(self, row_index:int, col_index:int) -> Tuple[float, float]:
 		# Compute the vector at the given row and column indices
@@ -228,18 +230,18 @@ class VectorField2D:
 		# Return the results
 		return (vector_x, vector_y)
 
-	def generateAllVectors(self, softmax_normalizer:float):
+	def computeRemainingVectors(self, softmax_normalizer:float):
 		# Generate all other vectors in the vector field
 		# Only proceed if the base vectors have been generated
-		assert self._base_generated_flag == True, "VectorField2D::generateAllVectors: Only able to generate all vectors once base vectors have been generated"
+		assert self._base_vectors_generated_flag == True, "VectorField2D::computeRemainingVectors: Only able to generate all vectors once base vectors have been generated"
 
-		# Mark that needed information has not been generated
-		self._all_generated_flag = False
-		self._curl_divergence_generated_flag = False
+		# Mark that needed information has not been handled
+		self._remaining_vectors_computed_flag = False
+		self._curl_divergence_computed_flag = False
 
 		# Verify the inputs
-		assert isNumeric(softmax_normalizer, include_numpy_flag = False) == True, "VectorField2D::generateAllVectors: Provided value for 'softmax_normalizer' must be a float or int object"
-		assert 0 < softmax_normalizer and softmax_normalizer < float("inf"), "VectorField2D::generateAllVectors: Provided value for 'softmax_normalizer' must be positive and finite"
+		assert isNumeric(softmax_normalizer, include_numpy_flag = False) == True, "VectorField2D::computeRemainingVectors: Provided value for 'softmax_normalizer' must be a float or int object"
+		assert 0 < softmax_normalizer and softmax_normalizer < float("inf"), "VectorField2D::computeRemainingVectors: Provided value for 'softmax_normalizer' must be positive and finite"
 
 		# Store the provided softmax normalizer value
 		self._softmax_normalizer = softmax_normalizer
@@ -252,7 +254,7 @@ class VectorField2D:
 
 		# Initialize a pool with the needed number of processes, run the computation in parallel, and end by closing the pool
 		pool = Pool(processes = max(cpu_count() - 1, 1))
-		all_outputs = pool.map(proxyComputeVector, all_inputs)
+		all_outputs = pool.map(_proxyComputeVector, all_inputs)
 		pool.close()
 
 		# Compute the vector associated with each point
@@ -264,8 +266,8 @@ class VectorField2D:
 			self._all_vectors_x[input_pair[1][0], input_pair[1][1]] = output_pair[0]
 			self._all_vectors_y[input_pair[1][0], input_pair[1][1]] = output_pair[1]
 
-		# Mark that all vectors have been generated
-		self._all_generated_flag = True
+		# Mark that the remaining vectors have been computed
+		self._remaining_vectors_computed_flag = True
 
 	### Define functions for computing and displaying information about the vector field ###
 	def computeCurlDivergence(self, row_index:int, col_index:int) -> Tuple[float, float]:
@@ -305,13 +307,13 @@ class VectorField2D:
 		# Return the results
 		return (curl, divergence)
 
-	def generateAllCurlDivergence(self):
+	def computeAllCurlDivergence(self):
 		# Compute all curl and divergence values for the vector field
 		# Only proceed if all vectors have been generated
-		assert self._all_generated_flag == True, "VectorField2D::generateAllCurlDivergence: Only able to generate curl and divergence once all vectors have been generated"
+		assert self._remaining_vectors_computed_flag == True, "VectorField2D::computeAllCurlDivergence: Only able to generate curl and divergence once all vectors have been generated"
 
-		# Mark that needed information has not been generated
-		self._curl_divergence_generated_flag = False
+		# Mark that needed information has not been handled
+		self._curl_divergence_computed_flag = False
 
 		# Create the input tuples for the process
 		all_inputs = []
@@ -321,7 +323,7 @@ class VectorField2D:
 
 		# Initialize a pool with the needed number of processes, run the computation in parallel, and end by closing the pool
 		pool = Pool(processes = max(cpu_count() - 1, 1))
-		all_outputs = pool.map(proxyComputeCurlDivergence, all_inputs)
+		all_outputs = pool.map(_proxyComputeCurlDivergence, all_inputs)
 		pool.close()
 
 		# Compute the vector associated with each point
@@ -333,13 +335,13 @@ class VectorField2D:
 			self._all_curls[input_pair[1][0], input_pair[1][1]] = output_pair[0]
 			self._all_divergences[input_pair[1][0], input_pair[1][1]] = output_pair[1]
 
-		# Mark that the curl and divergence have been generated
-		self._curl_divergence_generated_flag = True
+		# Mark that the curl and divergence have been computed
+		self._curl_divergence_computed_flag = True
 
 	def plotCurl(self, show_flag:bool = True, save_flag:bool = False):
 		# Plot the curl of the vector field
-		# Only proceed if curl and divergence have been generated
-		assert self._curl_divergence_generated_flag == True, "VectorField2D::plotCurl: Only able to plot curl and divergence once all curl and divergence values have been generated"
+		# Only proceed if curl and divergence have been computed
+		assert self._curl_divergence_computed_flag == True, "VectorField2D::plotCurl: Only able to plot curl and divergence once all curl and divergence values have been generated"
 
 		# Verify the inputs
 		assert type(show_flag) == bool, "VectorField2D::plotCurl: Provided value for 'show_flag' must be a bool object"
@@ -385,8 +387,8 @@ class VectorField2D:
 
 	def plotDivergence(self, show_flag:bool = True, save_flag:bool = False):
 		# Plot the divergence of the vector field
-		# Only proceed if curl and divergence have been generated
-		assert self._curl_divergence_generated_flag == True, "VectorField2D::plotDivergence: Only able to plot curl and divergence once all curl and divergence values have been generated"
+		# Only proceed if curl and divergence have been computed
+		assert self._curl_divergence_computed_flag == True, "VectorField2D::plotDivergence: Only able to plot curl and divergence once all curl and divergence values have been generated"
 
 		# Verify the inputs
 		assert type(show_flag) == bool, "VectorField2D::plotDivergence: Provided value for 'show_flag' must be a bool object"
@@ -430,10 +432,146 @@ class VectorField2D:
 			# Save the image to this location
 			divergence_image.save(image_path, "PNG")
 
+	def plotPCA(self, unclipped_flag:bool = True, keep_positive_flag:bool = False, keep_negative_flag:bool = False, show_flag:bool = True, save_flag:bool = False):
+		# Plot the PCA combination of curl and divergence of the vector field
+		# Only proceed if curl and divergence have been computed
+		assert self._curl_divergence_computed_flag == True, "VectorField2D::plotPCA: Only able to plot curl and divergence once all curl and divergence values have been generated"
+
+		# Verify the inputs
+		# Image type flags
+		assert type(unclipped_flag) == bool, "VectorField2D::plotPCA: Provided value for 'unclipped_flag' must be a bool object"
+		assert type(keep_positive_flag) == bool, "VectorField2D::plotPCA: Provided value for 'keep_positive_flag' must be a bool object"
+		assert type(keep_negative_flag) == bool, "VectorField2D::plotPCA: Provided value for 'keep_negative_flag' must be a bool object"
+		assert unclipped_flag == True or keep_positive_flag == True or keep_negative_flag == True, "VectorField2D::plotPCA: At least of the provided values for 'unclipped_flag', 'keep_positive_flag' and 'keep_negative_flag' must be True"
+		# Show/save flags
+		assert type(show_flag) == bool, "VectorField2D::plotPCA: Provided value for 'show_flag' must be a bool object"
+		assert type(save_flag) == bool, "VectorField2D::plotPCA: Provided value for 'save_flag' must be a bool object"
+		assert show_flag == True or save_flag == True, "VectorField2D::plotPCA: At least of the provided values for 'show_flag' and 'save_flag' must be True"
+
+		# Compute the maximum and minimum values of the curl and divergence
+		max_curl = np_max(self._all_curls)
+		min_curl = np_min(self._all_curls)
+		max_divergence = np_max(self._all_divergences)
+		min_divergence = np_min(self._all_divergences)
+
+		# Compute the maximum magnitude curl and divergence
+		max_magnitude_curl = max(abs(max_curl), abs(min_curl))
+		max_magnitude_divergence = max(abs(max_divergence), abs(min_divergence))
+
+		# Compute the raw data needed for PCA
+		raw_data_array = zeros((self._n_rows * self._n_cols, 4), dtype = float)
+		for row_index in range(self._n_rows):
+			for col_index in range(self._n_cols):
+				# Get the curl and divergence for this point
+				curl = self._all_curls[row_index, col_index]
+				divergence = self._all_divergences[row_index, col_index]
+
+				# Handle the storage of the curl data (positive is channel 0, negative is channel 1)
+				if curl > 0:
+					raw_data_array[self._n_cols * row_index + col_index, 0] = int(255 * curl / max_magnitude_curl)
+				elif curl < 0:
+					raw_data_array[self._n_cols * row_index + col_index, 1] = int(-255 * curl / max_magnitude_curl)
+
+				# Handle the storage of the curl data (positive is channel 2, negative is channel 3)
+				if divergence > 0:
+					raw_data_array[self._n_cols * row_index + col_index, 2] = int(255 * divergence / max_magnitude_divergence)
+				elif divergence < 0:
+					raw_data_array[self._n_cols * row_index + col_index, 3] = int(-255 * divergence / max_magnitude_divergence)
+
+		# Perform PCA on the raw data and extract the needed results
+		pca_results = performPCA(raw_data_array = raw_data_array)
+		projected_data_array = pca_results["outputs"]["projected_data_array"]
+
+		# Reshape the projected array to match the original shape
+		reshaped_projected_data_array = zeros((self._n_rows, self._n_cols, 3), dtype = float)
+		for row_index in range(self._n_rows):
+			for col_index in range(self._n_cols):
+				reshaped_projected_data_array[row_index, col_index, 0] = projected_data_array[self._n_cols * row_index + col_index, 0]
+				reshaped_projected_data_array[row_index, col_index, 1] = projected_data_array[self._n_cols * row_index + col_index, 1]
+				reshaped_projected_data_array[row_index, col_index, 2] = projected_data_array[self._n_cols * row_index + col_index, 2]
+
+		# Compute the positive, negative and unclipped normalizers for the data
+		positive_normalizer = np_max(reshaped_projected_data_array)
+		negative_normalizer = np_min(reshaped_projected_data_array)
+		unclipped_normalizer = positive_normalizer - negative_normalizer
+
+		# Make sure that the positive (resp. negative) normalizer is positive (resp. negative)
+		assert positive_normalizer > 0 and negative_normalizer < 0, "VectorField2D::plotPCA: Unable to proceed because projected component values must take both positive and negative values"
+
+		# Initialize the RGB arrays used for the image
+		pca_unclipped_rgb_array = zeros((self._n_rows, self._n_cols, 3), dtype = float)
+		pca_keep_positive_rgb_array = zeros((self._n_rows, self._n_cols, 3), dtype = float)
+		pca_keep_negative_rgb_array = zeros((self._n_rows, self._n_cols, 3), dtype = float)
+
+		# Compute the needed values for the RGB arrays
+		for row_index in range(self._n_rows):
+			for col_index in range(self._n_cols):
+				# Get the raw red, green and blue values
+				raw_red_value = reshaped_projected_data_array[row_index, col_index, 0]
+				raw_green_value = reshaped_projected_data_array[row_index, col_index, 1]
+				raw_blue_value = reshaped_projected_data_array[row_index, col_index, 2]
+
+				# Handle the red channel information
+				pca_unclipped_rgb_array[row_index, col_index, 0] = int(255 * (raw_red_value - negative_normalizer) / unclipped_normalizer)
+				if raw_red_value > 0:
+					pca_keep_positive_rgb_array[row_index, col_index, 0] = int(255 * raw_red_value / positive_normalizer)
+				elif raw_red_value < 0:
+					pca_keep_negative_rgb_array[row_index, col_index, 0] = int(255 * raw_red_value / negative_normalizer)
+
+				# Handle the green channel information
+				pca_unclipped_rgb_array[row_index, col_index, 1] = int(255 * (raw_green_value - negative_normalizer) / unclipped_normalizer)
+				if raw_green_value > 0:
+					pca_keep_positive_rgb_array[row_index, col_index, 1] = int(255 * raw_green_value / positive_normalizer)
+				elif raw_green_value < 0:
+					pca_keep_negative_rgb_array[row_index, col_index, 1] = int(255 * raw_green_value / negative_normalizer)
+
+				# Handle the blue channel information
+				pca_unclipped_rgb_array[row_index, col_index, 2] = int(255 * (raw_blue_value - negative_normalizer) / unclipped_normalizer)
+				if raw_blue_value > 0:
+					pca_keep_positive_rgb_array[row_index, col_index, 2] = int(255 * raw_blue_value / positive_normalizer)
+				elif raw_blue_value < 0:
+					pca_keep_negative_rgb_array[row_index, col_index, 2] = int(255 * raw_blue_value / negative_normalizer)
+
+		# Create the images from the RGB arrays
+		pca_unclipped_image = fromarray(pca_unclipped_rgb_array.astype(uint8), "RGB")
+		pca_keep_positive_image = fromarray(pca_keep_positive_rgb_array.astype(uint8), "RGB")
+		pca_keep_negative_image = fromarray(pca_keep_negative_rgb_array.astype(uint8), "RGB")
+
+		# Show the requested images (if needed)
+		if show_flag == True:
+			if unclipped_flag == True:
+				pca_unclipped_image.show()
+			if keep_positive_flag == True:
+				pca_keep_positive_image.show()
+			if keep_negative_flag == True:
+				pca_keep_negative_image.show()
+
+		# Save the requested images (if needed)
+		if save_flag == True:
+			if unclipped_flag == True:
+				# Get a path to which the image should be saved and make sure cancel wasn't clicked
+				image_path = askSaveFilename(allowed_extensions = ["png"])
+				assert image_path is not None, "VectorField2D::plotPCA: Unable to save unclipped image because cancel button was clicked"
+				# Save the image to this location
+				pca_unclipped_image.save(image_path, "PNG")
+			if keep_positive_flag == True:
+				# Get a path to which the image should be saved and make sure cancel wasn't clicked
+				image_path = askSaveFilename(allowed_extensions = ["png"])
+				assert image_path is not None, "VectorField2D::plotPCA: Unable to save positive image because cancel button was clicked"
+				# Save the image to this location
+				pca_keep_positive_image.save(image_path, "PNG")
+			if keep_negative_flag == True:
+				# Get a path to which the image should be saved and make sure cancel wasn't clicked
+				image_path = askSaveFilename(allowed_extensions = ["png"])
+				assert image_path is not None, "VectorField2D::plotPCA: Unable to save negative image because cancel button was clicked"
+				# Save the image to this location
+				pca_keep_negative_image.save(image_path, "PNG")
+
 if __name__ == "__main__":
 	a = VectorField2D(n_rows = 1080, n_cols = 1920)
 	a.generateBaseVectors(seed = 0)
-	a.generateAllVectors(softmax_normalizer = 320)
-	a.generateAllCurlDivergence()
+	a.computeRemainingVectors(softmax_normalizer = 320)
+	a.computeAllCurlDivergence()
 	a.plotCurl(show_flag = False, save_flag = True)
 	a.plotDivergence(show_flag = False, save_flag = True)
+	a.plotPCA(unclipped_flag = True, keep_positive_flag = True, keep_negative_flag = True, show_flag = False, save_flag = True)

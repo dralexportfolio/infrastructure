@@ -28,26 +28,36 @@ def performPCA(raw_data_array:ndarray, weight_vector:ndarray = None) -> dict:
 	# Extract the numbers of rows and columns in the data
 	n_rows = raw_data_array.shape[0]
 	n_cols = raw_data_array.shape[1]
-	
-	# Set the weight vector to be all ones if not provided
+
+	# Handle the case of weights vs. no weights
 	if weight_vector is None:
-		weight_vector = ones(n_rows, dtype = float)
-	
-	# Construct the weight array to use moving forward
-	weight_array = zeros((n_rows, n_rows), dtype = float)
-	for index in range(n_rows):
-		weight_array[index, index] = weight_vector[index]
+		# Set the needed data array to just be the original array
+		needed_data_array = raw_data_array
+	else:
+		# Set the weight vector to be all ones if not provided
+		if weight_vector is None:
+			weight_vector = ones(n_rows, dtype = float)
+
+		# Construct the weight array to use moving forward
+		weight_array = zeros((n_rows, n_rows), dtype = float)
+		for index in range(n_rows):
+			weight_array[index, index] = weight_vector[index]
 			
-	# Weight each row of the data by the needed amount and compute the weighted means and deviations
-	weighted_data_array = matmul(weight_array, raw_data_array)
-	weighted_data_means = mean(weighted_data_array, axis = 0)
-	weighted_data_deviations = std(weighted_data_array, axis = 0)
+		# Get the needed data array by weighting each row of the data by the needed amount
+		needed_data_array = matmul(weight_array, raw_data_array)
+
+	# Compute the needed means and deviations
+	needed_data_means = mean(needed_data_array, axis = 0)
+	needed_data_deviations = std(needed_data_array, axis = 0)
 	
-	# Center the data, compute the weighted deviations and normalize (will be n_rows x n_cols)
-	normalized_data_array = (weighted_data_array - weighted_data_means) / weighted_data_deviations
+	# Center and normalized the data using the means and deviations (will be n_rows x n_cols)
+	normalized_data_array = (needed_data_array - needed_data_means) / needed_data_deviations
 	
 	# Compute the covariance matrix of the normalized data (will be n_cols x n_cols)
-	covariance_array = matmul(normalized_data_array.T, matmul(weight_array, normalized_data_array)) / sum(weight_vector)
+	if weight_vector is None:
+		covariance_array = matmul(normalized_data_array.T, normalized_data_array) / n_rows
+	else:
+		covariance_array = matmul(normalized_data_array.T, matmul(weight_array, normalized_data_array)) / sum(weight_vector)
 	
 	# Compute the eigenvalues and eigenvectors of the covariance matrix (will be n_cols and n_cols x n_cols respectively)
 	covariance_eigenvalues, covariance_eigenvectors = eig(covariance_array)
@@ -65,7 +75,7 @@ def performPCA(raw_data_array:ndarray, weight_vector:ndarray = None) -> dict:
 		ordered_covariance_eigenvalues[col_index] = covariance_eigenvalues[decreasing_index_order[col_index]]
 		ordered_covariance_eigenvectors[:, col_index] = covariance_eigenvectors[:, decreasing_index_order[col_index]]
 	
-	# Nomalize the eigenvalues to get the percent variances in decreasing variance order
+	# Normalize the eigenvalues to get the percent variances in decreasing variance order
 	ordered_percent_variances = 100 * ordered_covariance_eigenvalues / sum(ordered_covariance_eigenvalues)
 	
 	# Project the normalized data onto the principal directions in decreasing variance order  (will be n_rows x n_cols)
@@ -75,8 +85,8 @@ def performPCA(raw_data_array:ndarray, weight_vector:ndarray = None) -> dict:
 	pca_results = {"inputs": {}, "outputs": {}}
 	pca_results["inputs"]["raw_data_array"] = raw_data_array
 	pca_results["inputs"]["weight_vector"] = weight_vector
-	pca_results["outputs"]["weighted_data_means"] = weighted_data_means
-	pca_results["outputs"]["weighted_data_deviations"] = weighted_data_deviations
+	pca_results["outputs"]["needed_data_means"] = needed_data_means
+	pca_results["outputs"]["needed_data_deviations"] = needed_data_deviations
 	pca_results["outputs"]["normalized_data_array"] = normalized_data_array
 	pca_results["outputs"]["covariance_array"] = covariance_array
 	pca_results["outputs"]["ordered_covariance_eigenvalues"] = ordered_covariance_eigenvalues
