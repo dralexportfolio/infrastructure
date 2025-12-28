@@ -5,11 +5,10 @@
 # Import dependencies
 from pathlib import Path
 from sys import path
-# Get the shared parent folder
-parent_folder = Path(__file__).parent.parent
+# Get the shared infrastructure folder
+infrastructure_folder = Path(__file__).parent.parent
 # Add the needed paths
-path.insert(0, str(parent_folder.joinpath("common_needs")))
-path.insert(0, str(parent_folder.joinpath("dimensional_analysis")))
+path.insert(0, str(infrastructure_folder.joinpath("dimensional_analysis")))
 
 # Internal modules
 from dimension_reduction import performPCA
@@ -566,12 +565,3 @@ class VectorField2D:
 				assert image_path is not None, "VectorField2D::plotPCA: Unable to save negative image because cancel button was clicked"
 				# Save the image to this location
 				pca_keep_negative_image.save(image_path, "PNG")
-
-if __name__ == "__main__":
-	a = VectorField2D(n_rows = 1080, n_cols = 1920)
-	a.generateBaseVectors(seed = 0)
-	a.computeRemainingVectors(softmax_normalizer = 320)
-	a.computeAllCurlDivergence()
-	a.plotCurl(show_flag = False, save_flag = True)
-	a.plotDivergence(show_flag = False, save_flag = True)
-	a.plotPCA(unclipped_flag = True, keep_positive_flag = True, keep_negative_flag = True, show_flag = False, save_flag = True)
