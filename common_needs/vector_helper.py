@@ -229,7 +229,7 @@ class VectorField2D:
 		# Return the results
 		return (vector_x, vector_y)
 
-	def computeRemainingVectors(self, softmax_normalizer:float):
+	def computeRemainingVectors(self, softmax_normalizer:Any):
 		# Generate all other vectors in the vector field
 		# Only proceed if the base vectors have been generated
 		assert self._base_vectors_generated_flag == True, "VectorField2D::computeRemainingVectors: Only able to generate all vectors once base vectors have been generated"

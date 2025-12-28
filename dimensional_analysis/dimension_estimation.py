@@ -30,9 +30,10 @@ from typing import Any, Union
 ##################################
 ### Set the needed table names ###
 ##################################
-TABLE_NAME_SETTINGS = "input_settings"
-TABLE_NAME_INPUTS = "raw_data_array"
-TABLE_NAME_OUTPUTS = "cumulative_percent_variances"
+TABLE_NAME_INPUT_SETTINGS = "input_settings"
+TABLE_NAME_RAW_DATA_ARRAY = "raw_data_array"
+TABLE_NAME_PROJECTED_DATA_ARRAY = "projected_data_array"
+TABLE_NAME_CUMULATIVE_PERCENT_VARIANCES = "cumulative_percent_variances"
 
 
 ####################################################################################################################
@@ -56,32 +57,48 @@ def generateDimensionDatabase(raw_data_array:ndarray, softmax_distance:Any) -> U
 	n_cols = raw_data_array.shape[1]
 	
 	# Create the column names and types needed for the needed tables
-	# Settings table
-	setting_column_names = ["n_rows", "n_cols", "softmax_distance"]
-	setting_column_types = ["BIGINT", "BIGINT", "REAL"]
-	# Inputs table
-	input_column_names = ["parameter_" + str(index + 1) for index in range(n_cols)]
-	input_column_types = ["REAL" for _ in range(n_cols)]
-	# Outputs table
-	output_column_names = ["cumulative_" + str(index) for index in range(n_cols + 1)]
-	output_column_types = ["REAL" for _ in range(n_cols + 1)]
+	# Input settings table
+	input_settings_column_names = ["n_rows", "n_cols", "softmax_distance"]
+	input_settings_column_types = ["BIGINT", "BIGINT", "REAL"]
+	# Raw data array table
+	raw_data_array_column_names = ["parameter_" + str(index + 1) for index in range(n_cols)]
+	raw_data_array_column_types = ["REAL" for _ in range(n_cols)]
+	# Projected data array table
+	projected_data_array_column_names = ["parameter_" + str(index + 1) for index in range(n_cols)]
+	projected_data_array_column_types = ["REAL" for _ in range(n_cols)]
+	# Cumulative percent variances table
+	cumulative_percent_variances_column_names = ["cumulative_" + str(index) for index in range(n_cols + 1)]
+	cumulative_percent_variances_column_types = ["REAL" for _ in range(n_cols + 1)]
 	
 	# Create the needed db file and tables
-	addTable(db_path = db_path, table_name = TABLE_NAME_SETTINGS, column_names = setting_column_names, column_types = setting_column_types)
-	addTable(db_path = db_path, table_name = TABLE_NAME_INPUTS, column_names = input_column_names, column_types = input_column_types)
-	addTable(db_path = db_path, table_name = TABLE_NAME_OUTPUTS, column_names = output_column_names, column_types = output_column_types)
-	
+	addTable(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS, column_names = input_settings_column_names, column_types = input_settings_column_types)
+	addTable(db_path = db_path, table_name = TABLE_NAME_RAW_DATA_ARRAY, column_names = raw_data_array_column_names, column_types = raw_data_array_column_types)
+	addTable(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, column_names = projected_data_array_column_names, column_types = projected_data_array_column_types)
+	addTable(db_path = db_path, table_name = TABLE_NAME_CUMULATIVE_PERCENT_VARIANCES, column_names = cumulative_percent_variances_column_names, column_types = cumulative_percent_variances_column_types)
+
 	# Write the settings to the db file
-	appendRow(db_path = db_path, table_name = TABLE_NAME_SETTINGS)
-	replaceRow(db_path = db_path, table_name = TABLE_NAME_SETTINGS, row_index = 0, new_row = [n_rows, n_cols, float(softmax_distance)])
+	appendRow(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS)
+	replaceRow(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0, new_row = [n_rows, n_cols, float(softmax_distance)])
 	
-	# Write the raw data input to the db file
+	# Write the raw data array to the db file
 	for row_index in range(n_rows):
 		# Get the new row as float values
 		new_row = [float(value) for value in raw_data_array[row_index, :]]
 		# Write to the db file
-		appendRow(db_path = db_path, table_name = TABLE_NAME_INPUTS)
-		replaceRow(db_path = db_path, table_name = TABLE_NAME_INPUTS, row_index = row_index, new_row = new_row)
+		appendRow(db_path = db_path, table_name = TABLE_NAME_RAW_DATA_ARRAY)
+		replaceRow(db_path = db_path, table_name = TABLE_NAME_RAW_DATA_ARRAY, row_index = row_index, new_row = new_row)
+
+	# Perform PCA on the raw data array to get the projected data array used for plotting
+	pca_results = performPCA(raw_data_array = raw_data_array)
+	projected_data_array = pca_results["outputs"]["projected_data_array"]
+
+	# Write the projected data array to the db file
+	for row_index in range(n_rows):
+		# Get the new row as float values
+		new_row = [float(value) for value in projected_data_array[row_index, :]]
+		# Write to the db file
+		appendRow(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY)
+		replaceRow(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, row_index = row_index, new_row = new_row)
 	
 	# Compute the pairwise distances between each data point
 	distance_array = zeros((n_rows, n_rows), dtype = float)
@@ -104,8 +121,8 @@ def generateDimensionDatabase(raw_data_array:ndarray, softmax_distance:Any) -> U
 		cumulative_percent_variances[-1] = 100.0
 		
 		# Write this information to the db file
-		appendRow(db_path = db_path, table_name = TABLE_NAME_OUTPUTS)
-		replaceRow(db_path = db_path, table_name = TABLE_NAME_OUTPUTS, row_index = row_index, new_row = cumulative_percent_variances)
+		appendRow(db_path = db_path, table_name = TABLE_NAME_CUMULATIVE_PERCENT_VARIANCES)
+		replaceRow(db_path = db_path, table_name = TABLE_NAME_CUMULATIVE_PERCENT_VARIANCES, row_index = row_index, new_row = cumulative_percent_variances)
 		
 	# Return the path of the db file
 	return db_path
@@ -120,21 +137,22 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], percent_va
 	assert type(db_path) in [PosixPath, WindowsPath], "estimatePointwiseDimension: Provided value for 'db_path' must be a PosixPath or WindowsPath object"
 	assert isNumeric(percent_variance, include_numpy_flag = True) == True, "estimatePointwiseDimension: Provided value for 'percent_variance' must be numeric"
 	assert 0 <= percent_variance and percent_variance <= 100, "estimatePointwiseDimension: Provided value for 'percent_variance' must be >= 0 and <= 100"
-	
-	# Get the column names and row count from the db file
-	column_names = getColumnNames(db_path = db_path, table_name = TABLE_NAME_OUTPUTS)
-	row_count = getRowCount(db_path = db_path, table_name = TABLE_NAME_OUTPUTS)
+
+	# Get the number of rows and columns in the raw data
+	read_row = readRow(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
+	n_rows = read_row[0]
+	n_cols = read_row[1]
 	
 	# Create the y-values for the linear splines
-	y_values = [index for index in range(len(column_names))]
+	y_values = [index for index in range(n_cols + 1)]
 	
 	# Initialize the list of results
 	dimension_results = []
 	
 	# Compute the dimension estimates for each point
-	for row_index in range(row_count):
+	for row_index in range(n_rows):
 		# Read the needed row from the db file as the x-values
-		x_values = readRow(db_path = db_path, table_name = TABLE_NAME_OUTPUTS, row_index = row_index)
+		x_values = readRow(db_path = db_path, table_name = TABLE_NAME_CUMULATIVE_PERCENT_VARIANCES, row_index = row_index)
 		
 		# Create a linear spline using these x-values and y-values
 		linear_spline = LinearSpline(x_values = x_values, y_values = y_values)
@@ -156,15 +174,24 @@ def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_va
 	assert isNumeric(percent_variance, include_numpy_flag = True) == True, "visualizePointwiseEstimate: Provided value for 'percent_variance' must be numeric"
 	assert 0 <= percent_variance and percent_variance <= 100, "visualizePointwiseEstimate: Provided value for 'percent_variance' must be >= 0 and <= 100"
 	assert used_engine in ["matplotlib", "plotly"], "visualizePointwiseEstimate: Provided value for 'used_engine' must be 'matplotlib' or 'plotly'"
-	
+
 	# Get the number of rows and columns in the raw data
-	read_row = readRow(db_path = db_path, table_name = TABLE_NAME_SETTINGS, row_index = 0)
+	read_row = readRow(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
 	n_rows = read_row[0]
 	n_cols = read_row[1]
-	
-	print(n_rows, n_cols)
 
-'''
+	# Estimate the pointwise dimension for each point at the needed percent variance
+	dimension_results = estimatePointwiseDimension(db_path = db_path, percent_variance = percent_variance)
+
+	# Load the projected data array from the db file
+
+	# Create a scatter plot to visualize the pointwise dimension
+	if used_engine == "matplotlib":
+		pass
+	else:
+		pass
+
+
 from numpy import random
 raw_data_array = random.rand(50, 10)
 db_path = generateDimensionDatabase(raw_data_array = raw_data_array, softmax_distance = 1)
@@ -174,4 +201,4 @@ print(estimatePointwiseDimension(db_path = db_path, percent_variance = 50))
 print(estimatePointwiseDimension(db_path = db_path, percent_variance = 75))
 print(estimatePointwiseDimension(db_path = db_path, percent_variance = 100))
 visualizePointwiseEstimate(db_path = db_path, percent_variance = 50)
-'''
+

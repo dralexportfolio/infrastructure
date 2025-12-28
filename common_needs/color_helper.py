@@ -196,22 +196,22 @@ print(ALL_PLOTLY_SCALES)
 #################################################################
 ### Define a function for generating RGB values on a spectrum ###
 #################################################################
-def getRGB(parameter:float, red_values:list = [255, 0, 0, 255, 255, 255], green_values:list = [0, 0, 255, 255, 127, 0], blue_values:list = [255, 255, 0, 0, 0, 0]) -> Tuple[int, int, int]:
+def getRGB(parameter:Any, red_values:list = [255, 0, 0, 255, 255, 255], green_values:list = [0, 0, 255, 255, 127, 0], blue_values:list = [255, 255, 0, 0, 0, 0]) -> Tuple[int, int, int]:
 	# Compute an RGB tuple using the provided inputs (note: input values between 0 and 1, output values between 0 and 255)
 	# Verify the inputs
-	assert isNumeric(parameter) == True, "getRGB: Provided value for 'parameter' must be a float or int object"
+	assert isNumeric(parameter, include_numpy_flag = False) == True, "getRGB: Provided value for 'parameter' must be a float or int object"
 	assert 0 <= parameter and parameter <= 1, "getRGB: Provided value for 'parameter' must be >= 0 and <= 1"
 	assert type(red_values) == list, "getRGB: Provided value for 'red_values' must be a list object"
 	for red_value in red_values:
-		assert isNumeric(red_value) == True, "getRGB: Provided value for 'red_values' must be a list of float or int objects"
+		assert isNumeric(red_value, include_numpy_flag = False) == True, "getRGB: Provided value for 'red_values' must be a list of float or int objects"
 		assert 0 <= red_value and red_value <= 255, "getRGB: Provided value for 'red_values' must be a list of numbers >= 0 and <= 255"
 	assert type(green_values) == list, "getRGB: Provided value for 'green_values' must be a list object"
 	for green_value in green_values:
-		assert isNumeric(green_value) == True, "getRGB: Provided value for 'green_values' must be a list of float or int objects"
+		assert isNumeric(green_value, include_numpy_flag = False) == True, "getRGB: Provided value for 'green_values' must be a list of float or int objects"
 		assert 0 <= green_value and red_value <= 255, "getRGB: Provided value for 'green_values' must be a list of numbers >= 0 and <= 255"
 	assert type(blue_values) == list, "getRGB: Provided value for 'blue_values' must be a list object"
 	for blue_value in blue_values:
-		assert isNumeric(blue_value) == True, "getRGB: Provided value for 'blue_values' must be a list of float or int objects"
+		assert isNumeric(blue_value, include_numpy_flag = False) == True, "getRGB: Provided value for 'blue_values' must be a list of float or int objects"
 		assert 0 <= blue_value and blue_value <= 255, "getRGB: Provided value for 'blue_values' must be a list of numbers >= 0 and <= 255"
 		
 	# Compute the non-normalized red value to use

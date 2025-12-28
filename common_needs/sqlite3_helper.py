@@ -428,13 +428,14 @@ def replaceColumn(db_path:Union[PosixPath, WindowsPath], table_name:str, column_
 	row_count = _checkRowCount(db_cursor = db_cursor, table_name = table_name, min_count = 1)
 	
 	# Verify any additional inputs
-	assert type(new_column) == list, "replaceColumn: Provided valuef for 'new_column' must be a list object"
-	assert len(new_column) == row_count, "replaceColumn: Provided value for 'new_column' mustbe of length equal to the number of rows in the provided table"
+	assert type(new_column) == list, "replaceColumn: Provided value for 'new_column' must be a list object"
+	assert len(new_column) == row_count, "replaceColumn: Provided value for 'new_column' must be of length equal to the number of rows in the provided table"
 	
 	# Execute a sequence of replace entry queries on the entire column
 	for row_index in range(row_count):
-		# Create the query for replacing an existing entry in the table with a new entry
-		replace_entry_query = "UPDATE '" + table_name + "' SET " + column_name + " = ? LIMIT 1 OFFSET " + str(row_index) + ";"
+		# Create the query for replacing an existing entry in the table with a new entry (using a sub-query to allow for use of LIMIT and OFFSET)
+		replace_entry_query = "UPDATE '" + table_name + "' SET " + column_name + " = ? "
+		replace_entry_query += "WHERE rowid IN (SELECT rowid FROM '" + table_name + "' LIMIT 1 OFFSET " + str(row_index) + ");"
 				
 		# Execute the write query
 		db_cursor.execute(replace_entry_query, (new_column[row_index],))
@@ -462,10 +463,14 @@ def replaceRow(db_path:Union[PosixPath, WindowsPath], table_name:str, row_index:
 	row_index = row_index % row_count
 	
 	# Create the query for replacing an existing row in the table with a new row
+	# Initialize the query
 	replace_row_query = "UPDATE '" + table_name + "' SET "
+	# Add in the main query information
 	for col_index in range(len(column_names)):
 		replace_row_query += column_names[col_index] + " = ?"
-		replace_row_query += ", " if col_index < len(column_names) - 1 else " LIMIT 1 OFFSET " + str(row_index) + ";"
+		replace_row_query += ", " if col_index < len(column_names) - 1 else " "
+	# Add a sub-query to allow for use of LIMIT and OFFSET
+	replace_row_query += "WHERE rowid IN (SELECT rowid FROM '" + table_name + "' LIMIT 1 OFFSET " + str(row_index) + ");"
 			
 	# Execute the write query
 	db_cursor.execute(replace_row_query, new_row)
@@ -487,9 +492,10 @@ def replaceEntry(db_path:Union[PosixPath, WindowsPath], table_name:str, column_n
 	
 	# Wrap the row index around to be in a valid range
 	row_index = row_index % row_count
-	
-	# Create the query for replacing an existing entry in the table with a new entry
-	replace_entry_query = "UPDATE '" + table_name + "' SET " + column_name + " = ? LIMIT 1 OFFSET " + str(row_index) + ";"
+
+	# Create the query for replacing an existing entry in the table with a new entry (using a sub-query to allow for use of LIMIT and OFFSET)
+	replace_entry_query = "UPDATE '" + table_name + "' SET " + column_name + " = ? "
+	replace_entry_query += "WHERE rowid IN (SELECT rowid FROM '" + table_name + "' LIMIT 1 OFFSET " + str(row_index) + ");"
 			
 	# Execute the write query
 	db_cursor.execute(replace_entry_query, (new_entry,))
@@ -527,20 +533,26 @@ def swapRows(db_path:Union[PosixPath, WindowsPath], table_name:str, row_index_1:
 	read_row_2 = list(read_row_2_result)
 	
 	# Write the read 2nd row to the table's 1st row
-	# Create the query
+	# Initialize the query
 	replace_row_1_query = "UPDATE '" + table_name + "' SET "
+	# Add in the main query information
 	for col_index in range(len(column_names)):
 		replace_row_1_query += column_names[col_index] + " = ?"
-		replace_row_1_query += ", " if col_index < len(column_names) - 1 else " LIMIT 1 OFFSET " + str(row_index_1) + ";"
+		replace_row_1_query += ", " if col_index < len(column_names) - 1 else " "
+	# Add a sub-query to allow for use of LIMIT and OFFSET
+	replace_row_1_query += "WHERE rowid IN (SELECT rowid FROM '" + table_name + "' LIMIT 1 OFFSET " + str(row_index_1) + ");"
 	# Execute the query
 	db_cursor.execute(replace_row_1_query, read_row_2)
 		
 	# Write the read 1st row to the table's 2nd row
-	# Create the query
+	# Initialize the query
 	replace_row_2_query = "UPDATE '" + table_name + "' SET "
+	# Add in the main query information
 	for col_index in range(len(column_names)):
 		replace_row_2_query += column_names[col_index] + " = ?"
-		replace_row_2_query += ", " if col_index < len(column_names) - 1 else " LIMIT 1 OFFSET " + str(row_index_2) + ";"
+		replace_row_2_query += ", " if col_index < len(column_names) - 1 else " "
+	# Add a sub-query to allow for use of LIMIT and OFFSET
+	replace_row_2_query += "WHERE rowid IN (SELECT rowid FROM '" + table_name + "' LIMIT 1 OFFSET " + str(row_index_2) + ");"
 	# Execute the query
 	db_cursor.execute(replace_row_2_query, read_row_1)
 		
