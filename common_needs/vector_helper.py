@@ -32,7 +32,7 @@ from typing import Any, Tuple
 ### Define the 2-dimensional vector field class ###
 ###################################################
 # Define a wrapper function so that the class can use multiprocessing to compute vectors
-def _proxyComputeVector(payload:Tuple[Any, Tuple[int, int]]) -> Tuple[float, float]:
+def _proxyComputeVector2D(payload:Tuple[Any, Tuple[int, int]]) -> Tuple[float, float]:
 	# Allow for computation of all vectors in the field to be computed in parallel
 	# Extract the needed values
 	vector_field = payload[0]
@@ -46,7 +46,7 @@ def _proxyComputeVector(payload:Tuple[Any, Tuple[int, int]]) -> Tuple[float, flo
 	return vector_field.computeVector(row_index = row_index, col_index = col_index)
 
 # Define a wrapper function so that the class can use multiprocessing to compute curl and divergence
-def _proxyComputeCurlDivergence(payload:Tuple[Any, Tuple[int, int]]) -> Tuple[float, float]:
+def _proxyComputeCurlDivergence2D(payload:Tuple[Any, Tuple[int, int]]) -> Tuple[float, float]:
 	# Allow for computation of all curl and divergence values in the field to be computed in parallel
 	# Extract the needed values
 	vector_field = payload[0]
@@ -253,7 +253,7 @@ class VectorField2D:
 
 		# Initialize a pool with the needed number of processes, run the computation in parallel, and end by closing the pool
 		pool = Pool(processes = max(cpu_count() - 1, 1))
-		all_outputs = pool.map(_proxyComputeVector, all_inputs)
+		all_outputs = pool.map(_proxyComputeVector2D, all_inputs)
 		pool.close()
 
 		# Compute the vector associated with each point
@@ -322,7 +322,7 @@ class VectorField2D:
 
 		# Initialize a pool with the needed number of processes, run the computation in parallel, and end by closing the pool
 		pool = Pool(processes = max(cpu_count() - 1, 1))
-		all_outputs = pool.map(_proxyComputeCurlDivergence, all_inputs)
+		all_outputs = pool.map(_proxyComputeCurlDivergence2D, all_inputs)
 		pool.close()
 
 		# Compute the vector associated with each point
