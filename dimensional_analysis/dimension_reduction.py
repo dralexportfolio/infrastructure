@@ -6,6 +6,7 @@ from numpy import argsort, matmul, mean, ndarray, ones, std, zeros
 from numpy import min as np_max
 from numpy import min as np_min
 from numpy.linalg import eig
+from scipy.sparse import spdiags
 
 
 #####################################################################
@@ -31,8 +32,15 @@ def performPCA(raw_data_array:ndarray, weight_vector:ndarray = None) -> dict:
 
 	# Handle the case of weights vs. no weights
 	if weight_vector is None:
-		# Set the needed data array to just be the original array
-		needed_data_array = raw_data_array
+		# Set the weight vector to be all ones because it wasn't provided
+		if weight_vector is None:
+			weight_vector = ones(n_rows, dtype = float)
+
+		# Set the weight array to be None to indicate that no weights were actually used
+		weight_array = None
+
+		# Set the "weighted" data array to just be the original array
+		weighted_data_array = raw_data_array
 	else:
 		# Set the weight vector to be all ones if not provided
 		if weight_vector is None:
@@ -43,18 +51,18 @@ def performPCA(raw_data_array:ndarray, weight_vector:ndarray = None) -> dict:
 		for index in range(n_rows):
 			weight_array[index, index] = weight_vector[index]
 			
-		# Get the needed data array by weighting each row of the data by the needed amount
-		needed_data_array = matmul(weight_array, raw_data_array)
+		# Get the weighted data array by weighting each row of the data by the needed amount
+		weighted_data_array = matmul(weight_array, raw_data_array)
 
-	# Compute the needed means and deviations
-	needed_data_means = mean(needed_data_array, axis = 0)
-	needed_data_deviations = std(needed_data_array, axis = 0)
+	# Compute the means and deviations of the weighted data
+	weighted_data_means = mean(weighted_data_array, axis = 0)
+	weighted_data_deviations = std(weighted_data_array, axis = 0)
 	
 	# Center and normalized the data using the means and deviations (will be n_rows x n_cols)
-	normalized_data_array = (needed_data_array - needed_data_means) / needed_data_deviations
+	normalized_data_array = (weighted_data_array - weighted_data_means) / weighted_data_deviations
 	
 	# Compute the covariance matrix of the normalized data (will be n_cols x n_cols)
-	if weight_vector is None:
+	if weight_array is None:
 		covariance_array = matmul(normalized_data_array.T, normalized_data_array) / n_rows
 	else:
 		covariance_array = matmul(normalized_data_array.T, matmul(weight_array, normalized_data_array)) / sum(weight_vector)
@@ -85,8 +93,8 @@ def performPCA(raw_data_array:ndarray, weight_vector:ndarray = None) -> dict:
 	pca_results = {"inputs": {}, "outputs": {}}
 	pca_results["inputs"]["raw_data_array"] = raw_data_array
 	pca_results["inputs"]["weight_vector"] = weight_vector
-	pca_results["outputs"]["needed_data_means"] = needed_data_means
-	pca_results["outputs"]["needed_data_deviations"] = needed_data_deviations
+	pca_results["outputs"]["weighted_data_means"] = weighted_data_means
+	pca_results["outputs"]["weighted_data_deviations"] = weighted_data_deviations
 	pca_results["outputs"]["normalized_data_array"] = normalized_data_array
 	pca_results["outputs"]["covariance_array"] = covariance_array
 	pca_results["outputs"]["ordered_covariance_eigenvalues"] = ordered_covariance_eigenvalues

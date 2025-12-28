@@ -167,29 +167,54 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], percent_va
 #############################################################################################
 ### Define a function for generating a visualization of the pointwise dimension estimates ###
 #############################################################################################
-def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_variance:Any, used_engine:str = "matplotlib"):
+def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_variance:Any, used_engine:str = "matplotlib", use_3d_flag:bool = False, show_flag:bool = True, save_flag:bool = False):
 	# Generate a scatter plot representing the pointwise dimension estimates
 	# Verify the inputs
 	assert type(db_path) in [PosixPath, WindowsPath], "visualizePointwiseEstimate: Provided value for 'db_path' must be a PosixPath or WindowsPath object"
 	assert isNumeric(percent_variance, include_numpy_flag = True) == True, "visualizePointwiseEstimate: Provided value for 'percent_variance' must be numeric"
 	assert 0 <= percent_variance and percent_variance <= 100, "visualizePointwiseEstimate: Provided value for 'percent_variance' must be >= 0 and <= 100"
 	assert used_engine in ["matplotlib", "plotly"], "visualizePointwiseEstimate: Provided value for 'used_engine' must be 'matplotlib' or 'plotly'"
+	assert type(use_3d_flag) == bool, "visualizePointwiseEstimate: Provided value for 'use_3d_flag' must be a bool object"
+	assert type(show_flag) == bool, "visualizePointwiseEstimate: Provided value for 'show_flag' must be a bool object"
+	assert type(save_flag) == bool, "visualizePointwiseEstimate: Provided value for 'save_flag' must be a bool object"
+	assert show_flag == True or save_flag == True, "visualizePointwiseEstimate: At least of the provided values for 'show_flag' and 'save_flag' must be True"
 
 	# Get the number of rows and columns in the raw data
 	read_row = readRow(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
 	n_rows = read_row[0]
 	n_cols = read_row[1]
 
+	# Make sure the number of columns is sufficiently large
+	if use_3d_flag == False:
+		assert n_cols >= 2, "visualizePointwiseEstimate: Number of columns in raw data set must be at least 2 when visualizing in 2D"
+	else:
+		assert n_cols >= 3, "visualizePointwiseEstimate: Number of columns in raw data set must be at least 2 when visualizing in 3D"
+
 	# Estimate the pointwise dimension for each point at the needed percent variance
 	dimension_results = estimatePointwiseDimension(db_path = db_path, percent_variance = percent_variance)
 
 	# Load the projected data array from the db file
+	# Initialize the array
+	projected_data_array = zeros((n_rows, n_cols), dtype = float)
+	# Load the needed values
+	for row_index in range(n_rows):
+		projected_data_array[row_index, :] = readRow(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, row_index = row_index)
 
 	# Create a scatter plot to visualize the pointwise dimension
 	if used_engine == "matplotlib":
 		pass
 	else:
-		pass
+		# Create the figure
+		fig = go.Figure()
+		# Add the needed traces
+		fig.add_trace(go.Scatter(x = projected_data_array[:, 0], y = projected_data_array[:, 1],
+								 mode = "markers"))
+		# Format the figure
+		fig.update_layout(title = "Estimated Pointwise Dimension Of Data")
+		fig.update_xaxes(title = "1st principal direction")
+		fig.update_yaxes(title = "2nd principal direction")
+		# Show the figure
+		fig.show()
 
 
 from numpy import random
@@ -200,5 +225,5 @@ print(estimatePointwiseDimension(db_path = db_path, percent_variance = 25))
 print(estimatePointwiseDimension(db_path = db_path, percent_variance = 50))
 print(estimatePointwiseDimension(db_path = db_path, percent_variance = 75))
 print(estimatePointwiseDimension(db_path = db_path, percent_variance = 100))
-visualizePointwiseEstimate(db_path = db_path, percent_variance = 50)
+visualizePointwiseEstimate(db_path = db_path, percent_variance = 50, used_engine = "plotly")
 
