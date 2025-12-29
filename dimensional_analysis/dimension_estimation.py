@@ -200,21 +200,63 @@ def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_va
 	for row_index in range(n_rows):
 		projected_data_array[row_index, :] = readRow(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, row_index = row_index)
 
+	# Set the plot title and axis labels
+	plot_title = "Estimated Pointwise Dimension Of Data"
+	x_label = "1st principal direction"
+	y_label = "2nd principal direction"
+	z_label = "3rd principal direction"
+
 	# Create a scatter plot to visualize the pointwise dimension
 	if used_engine == "matplotlib":
-		pass
+		# Create the figure
+		if use_3d_flag == False:
+			plt.figure()
+		else:
+			fig = plt.figure()
+			ax = fig.add_subplot(projection = "3d")
+		# Add the needed traces
+		if use_3d_flag == False:
+			plt.scatter(projected_data_array[:, 0], projected_data_array[:, 1])
+		else:
+			ax.scatter(projected_data_array[:, 0], projected_data_array[:, 1], projected_data_array[:, 2])
+		# Format the figure
+		plt.title(plot_title)
+		if use_3d_flag == False:
+			plt.xlabel(x_label)
+			plt.ylabel(y_label)
+		else:
+			ax.set_xlabel(x_label)
+			ax.set_ylabel(y_label)
+			ax.set_zlabel(z_label)
+		# Show the figure (if needed)
+		if show_flag == True:
+			plt.show()
 	else:
 		# Create the figure
 		fig = go.Figure()
 		# Add the needed traces
-		fig.add_trace(go.Scatter(x = projected_data_array[:, 0], y = projected_data_array[:, 1],
-								 mode = "markers"))
+		if use_3d_flag == False:
+			fig.add_trace(go.Scatter(x = projected_data_array[:, 0], y = projected_data_array[:, 1],
+									 mode = "markers"))
+		else:
+			fig.add_trace(go.Scatter3d(x = projected_data_array[:, 0], y = projected_data_array[:, 1],
+									   z = projected_data_array[:, 2], mode = "markers"))
 		# Format the figure
-		fig.update_layout(title = "Estimated Pointwise Dimension Of Data")
-		fig.update_xaxes(title = "1st principal direction")
-		fig.update_yaxes(title = "2nd principal direction")
-		# Show the figure
-		fig.show()
+		if use_3d_flag == False:
+			fig.update_layout(title = plot_title)
+			fig.update_xaxes(title = x_label)
+			fig.update_yaxes(title = y_label)
+		else:
+			fig.update_layout(title = plot_title,
+							  scene = {"xaxis_title": x_label,
+							           "yaxis_title": y_label,
+							           "zaxis_title": z_label})
+		# Show the figure (if needed)
+		if show_flag == True:
+			fig.show()
+		# Save the figure (if needed)
+		if save_flag == True:
+			pass
 
 
 from numpy import random
@@ -225,5 +267,5 @@ print(estimatePointwiseDimension(db_path = db_path, percent_variance = 25))
 print(estimatePointwiseDimension(db_path = db_path, percent_variance = 50))
 print(estimatePointwiseDimension(db_path = db_path, percent_variance = 75))
 print(estimatePointwiseDimension(db_path = db_path, percent_variance = 100))
-visualizePointwiseEstimate(db_path = db_path, percent_variance = 50, used_engine = "plotly")
+visualizePointwiseEstimate(db_path = db_path, percent_variance = 50, used_engine = "plotly", use_3d_flag = False)
 
