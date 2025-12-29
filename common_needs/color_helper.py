@@ -2,6 +2,7 @@
 ### Import needed general dependencies ###
 ##########################################
 # Internal modules
+from spline_helper import LinearSpline
 from type_helper import isListWithNumericEntries, isNumeric
 
 # External modules
@@ -91,7 +92,7 @@ class RGB:
 		
 	### Define functions for giving the RGB values in various formats ###
 	def asStringHex(self) -> str:
-		# Return RGB values a string of hexidecimal digits
+		# Return RGB values a string of hexadecimal digits
 		# Get the red value as a string of length 2
 		red_value_str = hex(self._red_value)[2:]
 		if len(red_value_str) == 1:
@@ -160,7 +161,6 @@ class RGBScale:
 	### Initialize the class ###
 	def __init__(rgb_values:list, parameter_values:list = None):
 		# Verify the inputs
-		print(rgb_values)
 		assert type(rgb_values) == list, "RGBScale::__init__: Provided value for 'rgb_values' must be a list object"
 		assert len(rgb_values) > 0, "RGBScale::__init__: Provided value for 'rgb_values' must be a non-empty list"
 		for rgb_value in rgb_values:
@@ -182,90 +182,87 @@ class RGBScale:
 # Get all plotly scale root names as a list
 ALL_PLOTLY_SCALE_ROOT_NAMES = colors.named_colorscales()
 
-# Get all plotly scales as a dictionary of RGB scale ojects
+# Get all plotly scales as a dictionary of RGB scale objects
 ALL_PLOTLY_SCALES = {}
 for scale_type in ["cyclical", "diverging", "qualitative", "sequential"]:
 	ALL_PLOTLY_SCALES[scale_type] = {}
 	for scale_name in dir(getattr(colors, scale_type)):
 		if scale_name.lower() in ALL_PLOTLY_SCALE_ROOT_NAMES or scale_name.lower() + "_r" in ALL_PLOTLY_SCALE_ROOT_NAMES:
-			print(type(getattr(getattr(colors, scale_type), scale_name)))
 			ALL_PLOTLY_SCALES[scale_type][scale_name] = getattr(getattr(colors, scale_type), scale_name)
-print(ALL_PLOTLY_SCALES)
 
 
 #################################################################
 ### Define a function for generating RGB values on a spectrum ###
 #################################################################
-def getRGB(parameter:Any, red_values:list = [255, 0, 0, 255, 255, 255], green_values:list = [0, 0, 255, 255, 127, 0], blue_values:list = [255, 255, 0, 0, 0, 0]) -> Tuple[int, int, int]:
-	# Compute an RGB tuple using the provided inputs (note: input values between 0 and 1, output values between 0 and 255)
-	# Verify the inputs
-	assert isNumeric(parameter, include_numpy_flag = False) == True, "getRGB: Provided value for 'parameter' must be a float or int object"
-	assert 0 <= parameter and parameter <= 1, "getRGB: Provided value for 'parameter' must be >= 0 and <= 1"
-	assert type(red_values) == list, "getRGB: Provided value for 'red_values' must be a list object"
-	for red_value in red_values:
-		assert isNumeric(red_value, include_numpy_flag = False) == True, "getRGB: Provided value for 'red_values' must be a list of float or int objects"
-		assert 0 <= red_value and red_value <= 255, "getRGB: Provided value for 'red_values' must be a list of numbers >= 0 and <= 255"
-	assert type(green_values) == list, "getRGB: Provided value for 'green_values' must be a list object"
-	for green_value in green_values:
-		assert isNumeric(green_value, include_numpy_flag = False) == True, "getRGB: Provided value for 'green_values' must be a list of float or int objects"
-		assert 0 <= green_value and red_value <= 255, "getRGB: Provided value for 'green_values' must be a list of numbers >= 0 and <= 255"
-	assert type(blue_values) == list, "getRGB: Provided value for 'blue_values' must be a list object"
-	for blue_value in blue_values:
-		assert isNumeric(blue_value, include_numpy_flag = False) == True, "getRGB: Provided value for 'blue_values' must be a list of float or int objects"
-		assert 0 <= blue_value and blue_value <= 255, "getRGB: Provided value for 'blue_values' must be a list of numbers >= 0 and <= 255"
-		
-	# Compute the non-normalized red value to use
-	if len(red_values) == 0:
-		# No value provided, use middle amount
-		non_normalized_red = 127
-	elif len(red_values) == 1:
-		# Single value provided, use that value
-		non_normalized_red = red_values[0]
+# Define the default RGB list for the custom spectrum
+DEFAULT_SPECTRUM = []
+DEFAULT_SPECTRUM.append(RGB((255, 0, 255)))		# purple
+DEFAULT_SPECTRUM.append(RGB((0, 0, 255)))		# blue
+DEFAULT_SPECTRUM.append(RGB((0, 255, 0)))		# green
+DEFAULT_SPECTRUM.append(RGB((255, 255, 0)))		# yellow
+DEFAULT_SPECTRUM.append(RGB((255, 127, 0)))		# orange
+DEFAULT_SPECTRUM.append(RGB((255, 0, 0)))		# red
+
+# Define the function for generating based on a parameter
+def customSpectrum(parameter:Any, rgb_spectrum:list = DEFAULT_SPECTRUM) -> RGB:
+	# Compute an RGB object using a spectrum on the
+	assert isNumeric(parameter, include_numpy_flag = False) == True, "customSpectrum: Provided value for 'parameter' must be a float or int object"
+	assert 0 <= parameter and parameter <= 1, "customSpectrum: Provided value for 'parameter' must be >= 0 and <= 1"
+	assert type(rgb_spectrum) == list, "customSpectrum: Provided value for 'rgb_spectrum' must be a list object"
+	assert len(rgb_spectrum) > 0, "customSpectrum: Provided value for 'rgb_spectrum' must be a non-empty list"
+	for rgb_value in rgb_spectrum:
+		assert type(rgb_value) == RGB, "customSpectrum: Provided value for 'rgb_spectrum' must be a list of RGB objects"
+
+	# Get the number of colors defining the spectrum
+	n_colors = len(rgb_spectrum)
+
+	# Generate the x-values for the linear splines
+	if n_colors == 1:
+		x_values = [0.5]
 	else:
-		# Multiple values provided, linearly interpolate
-		denominator = len(red_values) - 1
-		for index in range(1, denominator + 1):
-			if parameter <= index / denominator:
-				non_normalized_red = red_values[index - 1] * (index - denominator * parameter) + red_values[index] * (denominator * parameter - index + 1)
-				break
-				
-	# Compute the non-normalized green value to use
-	if len(green_values) == 0:
-		# No value provided, use middle amount
-		non_normalized_green = 127
-	elif len(green_values) == 1:
-		# Single value provided, use that value
-		non_normalized_green = green_values[0]
-	else:
-		# Multiple values provided, linearly interpolate
-		denominator = len(green_values) - 1
-		for index in range(1, denominator + 1):
-			if parameter <= index / denominator:
-				non_normalized_green = green_values[index - 1] * (index - denominator * parameter) + green_values[index] * (denominator * parameter - index + 1)
-				break
-				
-	# Compute the non-normalized blue value to use
-	if len(blue_values) == 0:
-		# No value provided, use middle amount
-		non_normalized_blue = 127
-	elif len(blue_values) == 1:
-		# Single value provided, use that value
-		non_normalized_blue = blue_values[0]
-	else:
-		# Multiple values provided, linearly interpolate
-		denominator = len(blue_values) - 1
-		for index in range(1, denominator + 1):
-			if parameter <= index / denominator:
-				non_normalized_blue = blue_values[index - 1] * (index - denominator * parameter) + blue_values[index] * (denominator * parameter - index + 1)
-				break
-				
+		x_values = [index / (n_colors - 1) for index in range(n_colors)]
+
+	# Extract the y-values for the linear splines
+	y_values_red = []
+	y_values_green = []
+	y_values_blue = []
+	for index in range(n_colors):
+		current_tuple = rgb_spectrum[index].asTupleFloat()
+		y_values_red.append(current_tuple[0])
+		y_values_green.append(current_tuple[1])
+		y_values_blue.append(current_tuple[2])
+
+	# Create the needed linear splines
+	spline_red = LinearSpline(x_values = x_values, y_values = y_values_red)
+	spline_green = LinearSpline(x_values = x_values, y_values = y_values_green)
+	spline_blue = LinearSpline(x_values = x_values, y_values = y_values_blue)
+
+	# Get the non-normalized values using the linear splines
+	non_normalized_red = spline_red.evaluate(x_value = parameter)
+	non_normalized_green = spline_green.evaluate(x_value = parameter)
+	non_normalized_blue = spline_blue.evaluate(x_value = parameter)
+
 	# Compute the normalizing value
 	rgb_normalizer = sqrt(non_normalized_red**2 + non_normalized_green**2 + non_normalized_blue**2)
-	
+
 	# Compute the normalized RGB values to use
 	normalized_red = int(255 * non_normalized_red / rgb_normalizer)
 	normalized_green = int(255 * non_normalized_green / rgb_normalizer)
 	normalized_blue = int(255 * non_normalized_blue / rgb_normalizer)
-	
+
 	# Return the results
-	return (normalized_red, normalized_green, normalized_blue)
+	return RGB((normalized_red, normalized_green, normalized_blue))
+
+'''
+print(customSpectrum(parameter = 0.0))
+print(customSpectrum(parameter = 0.1))
+print(customSpectrum(parameter = 0.2))
+print(customSpectrum(parameter = 0.3))
+print(customSpectrum(parameter = 0.4))
+print(customSpectrum(parameter = 0.5))
+print(customSpectrum(parameter = 0.6))
+print(customSpectrum(parameter = 0.7))
+print(customSpectrum(parameter = 0.8))
+print(customSpectrum(parameter = 0.9))
+print(customSpectrum(parameter = 1.0))
+'''

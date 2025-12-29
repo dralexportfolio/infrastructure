@@ -11,6 +11,7 @@ parent_folder = Path(__file__).parent.parent
 path.insert(0, str(parent_folder.joinpath("common_needs")))
 
 # Internal modules
+from color_helper import customSpectrum
 from dimension_reduction import performPCA
 from spline_helper import LinearSpline
 from sqlite3_helper import addTable, appendRow, getColumnNames, getRowCount, readRow, replaceRow
@@ -18,6 +19,7 @@ from tkinter_helper import askSaveFilename
 from type_helper import isNumeric
 
 # External modules
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 from numpy import cumsum, ndarray, zeros
 from numpy.linalg import norm
@@ -190,18 +192,28 @@ def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_va
 	else:
 		assert n_cols >= 3, "visualizePointwiseEstimate: Number of columns in raw data set must be at least 2 when visualizing in 3D"
 
-	# Estimate the pointwise dimension for each point at the needed percent variance
-	dimension_results = estimatePointwiseDimension(db_path = db_path, percent_variance = percent_variance)
-
 	# Load the projected data array from the db file
-	# Initialize the array
 	projected_data_array = zeros((n_rows, n_cols), dtype = float)
-	# Load the needed values
 	for row_index in range(n_rows):
 		projected_data_array[row_index, :] = readRow(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, row_index = row_index)
 
+	# Estimate the pointwise dimension for each point at the needed percent variance
+	dimension_results = estimatePointwiseDimension(db_path = db_path, percent_variance = percent_variance)
+
+	# Get all information needed showing the dimension estimates
+	if used_engine == "matplotlib":
+		# Get the RGB spectrum as hex codes
+		rgb_hex_spectrum = [customSpectrum(parameter = index / 100).asStringHex() for index in range(101)]
+		# Convert to a color map usable by matplotlib
+		color_map = mcolors.LinearSegmentedColormap.from_list("my_custom_scale", rgb_hex_spectrum)
+	else:
+		# Get a color scale usable by plotly
+		color_scale = [[index / 100, customSpectrum(parameter = index / 100).asStringTuple()] for index in range(101)]
+		# Get the labels needed for each point
+		point_labels = [round(value, 3) for value in dimension_results]
+
 	# Set the plot title and axis labels
-	plot_title = "Estimated Pointwise Dimension Of Data"
+	plot_title = "Estimated Pointwise Dimension Of Data (Represented Variance Of " + str(percent_variance) + "%)"
 	x_label = "1st principal direction"
 	y_label = "2nd principal direction"
 	z_label = "3rd principal direction"
@@ -216,18 +228,23 @@ def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_va
 			ax = fig.add_subplot(projection = "3d")
 		# Add the needed traces
 		if use_3d_flag == False:
-			plt.scatter(projected_data_array[:, 0], projected_data_array[:, 1])
+			plt.scatter(projected_data_array[:, 0], projected_data_array[:, 1], c = dimension_results, cmap = color_map)
 		else:
-			ax.scatter(projected_data_array[:, 0], projected_data_array[:, 1], projected_data_array[:, 2])
+			scatter_plot = ax.scatter(projected_data_array[:, 0], projected_data_array[:, 1], projected_data_array[:, 2], c = dimension_results, cmap = color_map)
 		# Format the figure
 		plt.title(plot_title)
 		if use_3d_flag == False:
 			plt.xlabel(x_label)
 			plt.ylabel(y_label)
+			plt.grid()
+			plt.colorbar()
+			plt.clim(0, n_cols)
 		else:
 			ax.set_xlabel(x_label)
 			ax.set_ylabel(y_label)
 			ax.set_zlabel(z_label)
+			fig.colorbar(scatter_plot, ax = ax)
+			scatter_plot.set_clim(0, n_cols)
 		# Show the figure (if needed)
 		if show_flag == True:
 			plt.show()
@@ -243,11 +260,30 @@ def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_va
 		fig = go.Figure()
 		# Add the needed traces
 		if use_3d_flag == False:
-			fig.add_trace(go.Scatter(x = projected_data_array[:, 0], y = projected_data_array[:, 1],
-									 mode = "markers"))
+			fig.add_trace(go.Scatter(x = projected_data_array[:, 0],
+			                         y = projected_data_array[:, 1],
+			                         showlegend = False,
+									 text = point_labels,
+									 hovertemplate = "<b>Estimated Dimension:</b> %{text}<br>",
+									 mode = "markers",
+									 marker = {"color": dimension_results,
+									           "colorscale": color_scale,
+									           "showscale": True,
+									           "cmin": 0,
+									           "cmax": n_cols}))
 		else:
-			fig.add_trace(go.Scatter3d(x = projected_data_array[:, 0], y = projected_data_array[:, 1],
-									   z = projected_data_array[:, 2], mode = "markers"))
+			fig.add_trace(go.Scatter3d(x = projected_data_array[:, 0],
+			                           y = projected_data_array[:, 1],
+									   z = projected_data_array[:, 2],
+									   showlegend = False,
+									   text = point_labels,
+									   hovertemplate = "<b>Estimated Dimension:</b> %{text}<br>",
+									   mode = "markers",
+									   marker = {"color": dimension_results,
+									             "colorscale": color_scale,
+									             "showscale": True,
+									             "cmin": 0,
+									             "cmax": n_cols}))
 		# Format the figure
 		if use_3d_flag == False:
 			fig.update_layout(title = plot_title)
@@ -271,12 +307,14 @@ def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_va
 
 
 from numpy import random
-raw_data_array = random.rand(50, 10)
+raw_data_array = random.rand(500, 10)
 db_path = generateDimensionDatabase(raw_data_array = raw_data_array, softmax_distance = 1)
-print(estimatePointwiseDimension(db_path = db_path, percent_variance = 0))
-print(estimatePointwiseDimension(db_path = db_path, percent_variance = 25))
-print(estimatePointwiseDimension(db_path = db_path, percent_variance = 50))
-print(estimatePointwiseDimension(db_path = db_path, percent_variance = 75))
-print(estimatePointwiseDimension(db_path = db_path, percent_variance = 100))
-visualizePointwiseEstimate(db_path = db_path, percent_variance = 50, used_engine = "plotly", use_3d_flag = False)
-
+#print(estimatePointwiseDimension(db_path = db_path, percent_variance = 0))
+#print(estimatePointwiseDimension(db_path = db_path, percent_variance = 25))
+#print(estimatePointwiseDimension(db_path = db_path, percent_variance = 50))
+#print(estimatePointwiseDimension(db_path = db_path, percent_variance = 75))
+#print(estimatePointwiseDimension(db_path = db_path, percent_variance = 100))
+#visualizePointwiseEstimate(db_path = db_path, percent_variance = 90, used_engine = "matplotlib", use_3d_flag = False)
+#visualizePointwiseEstimate(db_path = db_path, percent_variance = 90, used_engine = "matplotlib", use_3d_flag = True)
+visualizePointwiseEstimate(db_path = db_path, percent_variance = 90, used_engine = "plotly", use_3d_flag = False)
+#visualizePointwiseEstimate(db_path = db_path, percent_variance = 90, used_engine = "plotly", use_3d_flag = True)
