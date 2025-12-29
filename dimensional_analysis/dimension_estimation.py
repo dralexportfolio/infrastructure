@@ -231,6 +231,13 @@ def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_va
 		# Show the figure (if needed)
 		if show_flag == True:
 			plt.show()
+		# Save the figure (if needed)
+		if save_flag == True:
+			# Get a path to which the image should be saved and make sure cancel wasn't clicked
+			image_path = askSaveFilename(allowed_extensions = ["png"])
+			assert image_path is not None, "visualizePointwiseEstimate: Unable to save matplotlib figure because cancel button was clicked"
+			# Save the image to this location
+			plt.savefig(image_path)
 	else:
 		# Create the figure
 		fig = go.Figure()
@@ -256,7 +263,11 @@ def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_va
 			fig.show()
 		# Save the figure (if needed)
 		if save_flag == True:
-			pass
+			# Get a path to which the image should be saved and make sure cancel wasn't clicked
+			image_path = askSaveFilename(allowed_extensions = ["html"])
+			assert image_path is not None, "visualizePointwiseEstimate: Unable to save plotly figure because cancel button was clicked"
+			# Save the image to this location
+			fig.write_html(image_path)
 
 
 from numpy import random
