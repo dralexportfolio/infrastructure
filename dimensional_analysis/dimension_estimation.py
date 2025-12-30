@@ -5,10 +5,10 @@
 # Import dependencies
 from pathlib import Path
 from sys import path
-# Get the shared parent folder
-parent_folder = Path(__file__).parent.parent
+# Get the shared infrastructure folder
+infrastructure_folder = Path(__file__).parent.parent
 # Add the needed paths
-path.insert(0, str(parent_folder.joinpath("common_needs")))
+path.insert(0, str(infrastructure_folder.joinpath("common_needs")))
 
 # Internal modules
 from color_helper import customSpectrum
@@ -213,33 +213,36 @@ def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_va
 		point_labels = [round(value, 3) for value in dimension_results]
 
 	# Set the plot title and axis labels
-	plot_title = "Estimated Pointwise Dimension Of Data (Represented Variance Of " + str(percent_variance) + "%)"
+	plot_title = "Estimated Pointwise Dimension Of Data (Explained Variance Of " + str(percent_variance) + "%)"
 	x_label = "1st principal direction"
 	y_label = "2nd principal direction"
 	z_label = "3rd principal direction"
 
 	# Create a scatter plot to visualize the pointwise dimension
 	if used_engine == "matplotlib":
-		# Create the figure
+		# Create the needed matplotlib figure
 		if use_3d_flag == False:
+			# Handle the 2-dimensional case
+			# Create the figure
 			plt.figure()
-		else:
-			fig = plt.figure()
-			ax = fig.add_subplot(projection = "3d")
-		# Add the needed traces
-		if use_3d_flag == False:
+			# Add the needed traces
 			plt.scatter(projected_data_array[:, 0], projected_data_array[:, 1], c = dimension_results, cmap = color_map)
-		else:
-			scatter_plot = ax.scatter(projected_data_array[:, 0], projected_data_array[:, 1], projected_data_array[:, 2], c = dimension_results, cmap = color_map)
-		# Format the figure
-		plt.title(plot_title)
-		if use_3d_flag == False:
+			# Format the figure
+			plt.title(plot_title)
 			plt.xlabel(x_label)
 			plt.ylabel(y_label)
 			plt.grid()
 			plt.colorbar()
 			plt.clim(0, n_cols)
 		else:
+			# Handle the 3-dimensional case
+			# Create the figure
+			fig = plt.figure()
+			ax = fig.add_subplot(projection = "3d")
+			# Add the needed traces
+			scatter_plot = ax.scatter(projected_data_array[:, 0], projected_data_array[:, 1], projected_data_array[:, 2], c = dimension_results, cmap = color_map)
+			# Format the figure
+			plt.title(plot_title)
 			ax.set_xlabel(x_label)
 			ax.set_ylabel(y_label)
 			ax.set_zlabel(z_label)
@@ -256,10 +259,12 @@ def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_va
 			# Save the image to this location
 			plt.savefig(image_path)
 	else:
-		# Create the figure
-		fig = go.Figure()
-		# Add the needed traces
+		# Create the needed plotly figure
 		if use_3d_flag == False:
+			# Handle the 2-dimensional case
+			# Create the figure
+			fig = go.Figure()
+			# Add the needed traces
 			fig.add_trace(go.Scatter(x = projected_data_array[:, 0],
 			                         y = projected_data_array[:, 1],
 			                         showlegend = False,
@@ -271,7 +276,15 @@ def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_va
 									           "showscale": True,
 									           "cmin": 0,
 									           "cmax": n_cols}))
+			# Format the figure
+			fig.update_layout(title = plot_title)
+			fig.update_xaxes(title = x_label)
+			fig.update_yaxes(title = y_label)
 		else:
+			# Handle the 3-dimensional case
+			# Create the figure
+			fig = go.Figure()
+			# Add the needed traces
 			fig.add_trace(go.Scatter3d(x = projected_data_array[:, 0],
 			                           y = projected_data_array[:, 1],
 									   z = projected_data_array[:, 2],
@@ -284,12 +297,7 @@ def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_va
 									             "showscale": True,
 									             "cmin": 0,
 									             "cmax": n_cols}))
-		# Format the figure
-		if use_3d_flag == False:
-			fig.update_layout(title = plot_title)
-			fig.update_xaxes(title = x_label)
-			fig.update_yaxes(title = y_label)
-		else:
+			# Format the figure
 			fig.update_layout(title = plot_title,
 							  scene = {"xaxis_title": x_label,
 							           "yaxis_title": y_label,
@@ -304,17 +312,3 @@ def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_va
 			assert image_path is not None, "visualizePointwiseEstimate: Unable to save plotly figure because cancel button was clicked"
 			# Save the image to this location
 			fig.write_html(image_path)
-
-
-from numpy import random
-raw_data_array = random.rand(500, 10)
-db_path = generateDimensionDatabase(raw_data_array = raw_data_array, softmax_distance = 1)
-#print(estimatePointwiseDimension(db_path = db_path, percent_variance = 0))
-#print(estimatePointwiseDimension(db_path = db_path, percent_variance = 25))
-#print(estimatePointwiseDimension(db_path = db_path, percent_variance = 50))
-#print(estimatePointwiseDimension(db_path = db_path, percent_variance = 75))
-#print(estimatePointwiseDimension(db_path = db_path, percent_variance = 100))
-#visualizePointwiseEstimate(db_path = db_path, percent_variance = 80, used_engine = "matplotlib", use_3d_flag = False)
-#visualizePointwiseEstimate(db_path = db_path, percent_variance = 80, used_engine = "matplotlib", use_3d_flag = True)
-visualizePointwiseEstimate(db_path = db_path, percent_variance = 80, used_engine = "plotly", use_3d_flag = False)
-#visualizePointwiseEstimate(db_path = db_path, percent_variance = 80, used_engine = "plotly", use_3d_flag = True)
