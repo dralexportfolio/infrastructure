@@ -21,7 +21,7 @@ from type_helper import isNumeric
 # External modules
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
-from numpy import cumsum, ndarray, zeros
+from numpy import cumsum, mean, ndarray, zeros
 from numpy.linalg import norm
 from pathlib import PosixPath, WindowsPath
 import plotly.graph_objects as go
@@ -166,9 +166,95 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], percent_va
 	return dimension_results
 	
 	
-#############################################################################################
-### Define a function for generating a visualization of the pointwise dimension estimates ###
-#############################################################################################
+###########################################################################################
+### Define functions for generating visualizations of the pointwise dimension estimates ###
+###########################################################################################
+def plotCumulativeVariances(db_path:Union[PosixPath, WindowsPath], used_engine:str = "matplotlib", mean_only_flag:bool = False, show_flag:bool = True, save_flag:bool = False):
+	# Generate a plot of a cumulative percent variances for each point
+	# Verify the inputs
+	assert type(db_path) in [PosixPath, WindowsPath], "plotCumulativeVariances: Provided value for 'db_path' must be a PosixPath or WindowsPath object"
+	assert used_engine in ["matplotlib", "plotly"], "plotCumulativeVariances: Provided value for 'used_engine' must be 'matplotlib' or 'plotly'"
+	assert type(mean_only_flag) == bool, "plotCumulativeVariances: Provided value for 'mean_only_flag' must be a bool object"
+	assert type(show_flag) == bool, "plotCumulativeVariances: Provided value for 'show_flag' must be a bool object"
+	assert type(save_flag) == bool, "plotCumulativeVariances: Provided value for 'save_flag' must be a bool object"
+	assert show_flag == True or save_flag == True, "plotCumulativeVariances: At least of the provided values for 'show_flag' and 'save_flag' must be True"
+
+	# Get the number of rows and columns in the raw data (as well as the softmax distance)
+	read_row = readRow(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
+	n_rows = read_row[0]
+	n_cols = read_row[1]
+	softmax_distance = read_row[2]
+
+	# Load the cumulative percent variances from the db file
+	cumulative_percent_variances = zeros((n_rows, n_cols + 1), dtype = float)
+	for row_index in range(n_rows):
+		cumulative_percent_variances[row_index, :] = readRow(db_path = db_path, table_name = TABLE_NAME_CUMULATIVE_PERCENT_VARIANCES, row_index = row_index)
+
+	# Get the x-values and title shared between the traces
+	x_values = [index for index in range(n_cols + 1)]
+	plot_title = "Cumulative Percent Variances From Dimension Estimation (Softmax Distance Of " + str(softmax_distance) + ")"
+
+	# Plot the needed information
+	if used_engine == "matplotlib":
+		# Handle the case of using matplotlib
+		# Create the figure
+		plt.figure()
+		# Add the needed traces
+		if mean_only_flag == False:
+			for row_index in range(n_rows):
+				plt.plot(x_values, cumulative_percent_variances[row_index, :], color = customSpectrum(parameter = row_index / (n_rows - 1)).asStringHex(), zorder = 0)
+			plt.plot(x_values, mean(cumulative_percent_variances, axis = 0), label = "Mean", color = "black", zorder = 10)
+		else:
+			plt.plot(x_values, mean(cumulative_percent_variances, axis = 0), color = "black")
+		# Format the figure
+		if mean_only_flag == False:
+			plt.title(plot_title)
+			plt.legend()
+		else:
+			plt.title("Mean " + plot_title)
+		plt.xlabel("number of principal directions")
+		plt.ylabel("cumulative percent variance")
+		# Show the figure (if needed)
+		if show_flag == True:
+			plt.show()
+		# Save the figure (if needed)
+		if save_flag == True:
+			# Get a path to which the image should be saved and make sure cancel wasn't clicked
+			image_path = askSaveFilename(allowed_extensions = ["png"])
+			assert image_path is not None, "plotCumulativeVariances: Unable to save matplotlib figure because cancel button was clicked"
+			# Save the image to this location
+			plt.savefig(image_path)
+	else:
+		# Handle the case of using plotly
+		# Create the figure
+		fig = go.Figure()
+		# Add the needed traces
+		if mean_only_flag == False:
+			for row_index in range(n_rows):
+				fig.add_trace(go.Scatter(x = x_values, y = cumulative_percent_variances[row_index, :], name = "Point #" + str(row_index + 1),
+										 marker = {"color": customSpectrum(parameter = row_index / (n_rows - 1)).asStringTuple()}))
+			fig.add_trace(go.Scatter(x = x_values, y = mean(cumulative_percent_variances, axis = 0), name = "Mean", marker = {"color": "black"}))
+		else:
+			fig.add_trace(go.Scatter(x = x_values, y = mean(cumulative_percent_variances, axis = 0), showlegend = False, marker = {"color": "black"}))
+		# Format the figure
+		if mean_only_flag == False:
+			fig.update_layout(title = plot_title)
+		else:
+			fig.update_layout(title = "Mean " + plot_title)
+		fig.update_xaxes(title = "number of principal directions")
+		fig.update_yaxes(title = "cumulative percent variance")
+		# Show the figure (if needed)
+		if show_flag == True:
+			fig.show()
+		# Save the figure (if needed)
+		if save_flag == True:
+			# Get a path to which the image should be saved and make sure cancel wasn't clicked
+			image_path = askSaveFilename(allowed_extensions = ["html"])
+			assert image_path is not None, "plotCumulativeVariances: Unable to save plotly figure because cancel button was clicked"
+			# Save the image to this location
+			fig.write_html(image_path)
+
+
 def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_variance:Any, used_engine:str = "matplotlib", use_3d_flag:bool = False, show_flag:bool = True, save_flag:bool = False):
 	# Generate a scatter plot representing the pointwise dimension estimates
 	# Verify the inputs
@@ -181,10 +267,11 @@ def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_va
 	assert type(save_flag) == bool, "visualizePointwiseEstimate: Provided value for 'save_flag' must be a bool object"
 	assert show_flag == True or save_flag == True, "visualizePointwiseEstimate: At least of the provided values for 'show_flag' and 'save_flag' must be True"
 
-	# Get the number of rows and columns in the raw data
+	# Get the number of rows and columns in the raw data (as well as the softmax distance)
 	read_row = readRow(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
 	n_rows = read_row[0]
 	n_cols = read_row[1]
+	softmax_distance = read_row[2]
 
 	# Make sure the number of columns is sufficiently large
 	if use_3d_flag == False:
@@ -213,7 +300,7 @@ def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_va
 		point_labels = [round(value, 3) for value in dimension_results]
 
 	# Set the plot title and axis labels
-	plot_title = "Estimated Pointwise Dimension Of Data (Explained Variance Of " + str(percent_variance) + "%)"
+	plot_title = "Estimated Pointwise Dimension Of Data (Softmax Distance Of " + str(softmax_distance) + ", Explained Variance Of " + str(percent_variance) + "%)"
 	x_label = "1st principal direction"
 	y_label = "2nd principal direction"
 	z_label = "3rd principal direction"
