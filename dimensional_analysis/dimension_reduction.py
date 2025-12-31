@@ -6,19 +6,20 @@ from numpy import argsort, matmul, mean, ndarray, ones, std, zeros
 from numpy import min as np_max
 from numpy import min as np_min
 from numpy.linalg import eig
-from scipy.sparse import spdiags
+from scipy.sparse import diags
 
 
 #####################################################################
 ### Define a function for performing principal component analysis ###
 #####################################################################
-def performPCA(raw_data_array:ndarray, weight_vector:ndarray = None) -> dict:
+def performPCA(raw_data_array:ndarray, normalize_flag:bool = False, weight_vector:ndarray = None) -> dict:
 	# Compute information relevant to PCA analysis on the given raw data
 	# Verify the inputs
 	assert type(raw_data_array) == ndarray, "performPCA: Provided value for 'raw_data_array' must be a numpy.ndarry object"
 	assert len(raw_data_array.shape) == 2, "performPCA: Provided value for 'raw_data_array' must be a 2-dimensional numpy array"
 	assert raw_data_array.shape[0] > 0, "performPCA: Provided value for 'raw_data_array' must have a non-zero number of points, i.e. at least 1 row"
 	assert raw_data_array.shape[1] > 0, "performPCA: Provided value for 'raw_data_array' must have a non-zero number of features, i.e. at least 1 column"
+	assert type(normalize_flag) == bool, "performPCA: Provided value for 'normalize_flag' must be a bool object"
 	if weight_vector is not None:
 		assert type(weight_vector) == ndarray, "performPCA: If provided, value for 'weight_vector' must be a numpy.ndarry object"
 		assert len(weight_vector.shape) == 1, "performPCA: If provided, value for 'weight_vector' must be a 1-dimensional numpy array"
@@ -42,30 +43,31 @@ def performPCA(raw_data_array:ndarray, weight_vector:ndarray = None) -> dict:
 		# Set the "weighted" data array to just be the original array
 		weighted_data_array = raw_data_array
 	else:
-		# Set the weight vector to be all ones if not provided
-		if weight_vector is None:
-			weight_vector = ones(n_rows, dtype = float)
-
 		# Construct the weight array to use moving forward
-		weight_array = zeros((n_rows, n_rows), dtype = float)
-		for index in range(n_rows):
-			weight_array[index, index] = weight_vector[index]
+		weight_array = diags(weight_vector)
 			
 		# Get the weighted data array by weighting each row of the data by the needed amount
-		weighted_data_array = matmul(weight_array, raw_data_array)
+		# Note: numpy.matmul doesn't work with sparse matrices so use @ instead
+		weighted_data_array = weight_array @ raw_data_array
 
 	# Compute the means and deviations of the weighted data
 	weighted_data_means = mean(weighted_data_array, axis = 0)
 	weighted_data_deviations = std(weighted_data_array, axis = 0)
 	
 	# Center and normalized the data using the means and deviations (will be n_rows x n_cols)
-	normalized_data_array = (weighted_data_array - weighted_data_means) / weighted_data_deviations
+	if normalize_flag == False:
+		 # Only shift the data to be centered at the origin, don't normalize the deviations
+		normalized_data_array = weighted_data_array - weighted_data_means
+	else:
+		# Shift to the origin and then normalize the deviations
+		normalized_data_array = (weighted_data_array - weighted_data_means) / weighted_data_deviations
 	
 	# Compute the covariance matrix of the normalized data (will be n_cols x n_cols)
 	if weight_array is None:
 		covariance_array = matmul(normalized_data_array.T, normalized_data_array) / n_rows
 	else:
-		covariance_array = matmul(normalized_data_array.T, matmul(weight_array, normalized_data_array)) / sum(weight_vector)
+		# Note: numpy.matmul doesn't work with sparse matrices so use @ instead
+		covariance_array = matmul(normalized_data_array.T, weight_array @ normalized_data_array) / sum(weight_vector)
 	
 	# Compute the eigenvalues and eigenvectors of the covariance matrix (will be n_cols and n_cols x n_cols respectively)
 	covariance_eigenvalues, covariance_eigenvectors = eig(covariance_array)

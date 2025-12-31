@@ -3,6 +3,7 @@
 ##########################################
 # Add paths for internal modules
 # Import dependencies
+from locale import normalize
 from pathlib import Path
 from sys import path
 # Get the shared infrastructure folder
@@ -91,7 +92,7 @@ def generateDimensionDatabase(raw_data_array:ndarray, softmax_distance:Any) -> U
 		replaceRow(db_path = db_path, table_name = TABLE_NAME_RAW_DATA_ARRAY, row_index = row_index, new_row = new_row)
 
 	# Perform PCA on the raw data array to get the projected data array used for plotting
-	pca_results = performPCA(raw_data_array = raw_data_array)
+	pca_results = performPCA(raw_data_array = raw_data_array, normalize_flag = False)
 	projected_data_array = pca_results["outputs"]["projected_data_array"]
 
 	# Write the projected data array to the db file
@@ -116,7 +117,7 @@ def generateDimensionDatabase(raw_data_array:ndarray, softmax_distance:Any) -> U
 		weight_vector = softmax(-(distance_array[row_index, :] / softmax_distance)**2)
 		
 		# Compute the needed PCA results
-		pca_results = performPCA(raw_data_array = raw_data_array, weight_vector = weight_vector)
+		pca_results = performPCA(raw_data_array = raw_data_array, normalize_flag = False, weight_vector = weight_vector)
 		
 		# Compute the cumulative percent variances from these results (note: force first and last values to be 0 and 100 respectively)
 		cumulative_percent_variances = [0.0] + [float(value) for value in cumsum(pca_results["outputs"]["ordered_percent_variances"])]
@@ -198,7 +199,7 @@ def plotCumulativeVariances(db_path:Union[PosixPath, WindowsPath], used_engine:s
 	if used_engine == "matplotlib":
 		# Handle the case of using matplotlib
 		# Create the figure
-		plt.figure(figsize = (8, 6))
+		plt.figure(figsize = (10, 8))
 		# Add the needed traces
 		if mean_only_flag == False:
 			for row_index in range(n_rows):
@@ -288,7 +289,7 @@ def plotMarginalVariances(db_path:Union[PosixPath, WindowsPath], used_engine:str
 	if used_engine == "matplotlib":
 		# Handle the case of using matplotlib
 		# Create the figure
-		plt.figure(figsize = (8, 6))
+		plt.figure(figsize = (10, 8))
 		# Add the needed traces
 		if mean_only_flag == False:
 			for row_index in range(n_rows):
@@ -400,7 +401,7 @@ def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_va
 		if use_3d_flag == False:
 			# Handle the 2-dimensional case
 			# Create the figure
-			plt.figure(figsize = (8, 6))
+			plt.figure(figsize = (10, 8))
 			# Add the needed traces
 			plt.scatter(projected_data_array[:, 0], projected_data_array[:, 1], c = dimension_results, cmap = color_map)
 			# Format the figure
@@ -413,7 +414,7 @@ def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_va
 		else:
 			# Handle the 3-dimensional case
 			# Create the figure
-			fig = plt.figure(figsize = (8, 6))
+			fig = plt.figure(figsize = (10, 8))
 			ax = fig.add_subplot(projection = "3d")
 			# Add the needed traces
 			scatter_plot = ax.scatter(projected_data_array[:, 0], projected_data_array[:, 1], projected_data_array[:, 2], c = dimension_results, cmap = color_map)
@@ -472,7 +473,8 @@ def visualizePointwiseEstimate(db_path:Union[PosixPath, WindowsPath], percent_va
 									             "colorscale": color_scale,
 									             "showscale": True,
 									             "cmin": 0,
-									             "cmax": n_cols}))
+									             "cmax": n_cols,
+									             "size": 3}))
 			# Format the figure
 			fig.update_layout(title = plot_title,
 							  scene = {"xaxis_title": x_label,
