@@ -45,7 +45,7 @@ TABLE_NAME_CUMULATIVE_PERCENT_VARIANCES = "cumulative_percent_variances"
 def generateDimensionDatabase(raw_data_array:ndarray, softmax_distance:Any) -> Union[PosixPath, WindowsPath]:
 	# Use PCA to ompute the information for estimating pointwise dimension and write it to a db file, return the path written to
 	# Verify the inputs
-	assert type(raw_data_array) == ndarray, "generateDimensionDatabase: Provided value for 'raw_data_array' must be a numpy.ndarry object"
+	assert type(raw_data_array) == ndarray, "generateDimensionDatabase: Provided value for 'raw_data_array' must be a numpy.ndarray object"
 	assert len(raw_data_array.shape) == 2, "generateDimensionDatabase: Provided value for 'raw_data_array' must be a 2-dimensional numpy array"
 	assert raw_data_array.shape[0] > 0, "generateDimensionDatabase: Provided value for 'raw_data_array' must have a non-zero number of points, i.e. at least 1 row"
 	assert raw_data_array.shape[1] > 0, "generateDimensionDatabase: Provided value for 'raw_data_array' must have a non-zero number of features, i.e. at least 1 column"
@@ -113,11 +113,14 @@ def generateDimensionDatabase(raw_data_array:ndarray, softmax_distance:Any) -> U
 	
 	# Loop over the data points and compute the needed information
 	for row_index in range(n_rows):
+		# Set the center vector to be the current row
+		center_vector = raw_data_array[row_index, :]
+
 		# Compute the weight vector using softmax on the distances
 		weight_vector = softmax(-(distance_array[row_index, :] / softmax_distance)**2)
 		
 		# Compute the needed PCA results
-		pca_results = performPCA(raw_data_array = raw_data_array, normalize_flag = False, weight_vector = weight_vector)
+		pca_results = performPCA(raw_data_array = raw_data_array, normalize_flag = False, center_vector = center_vector, weight_vector = weight_vector)
 		
 		# Compute the cumulative percent variances from these results (note: force first and last values to be 0 and 100 respectively)
 		cumulative_percent_variances = [0.0] + [float(value) for value in cumsum(pca_results["outputs"]["ordered_percent_variances"])]

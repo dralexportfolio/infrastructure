@@ -15,18 +15,18 @@ from scipy.sparse import diags
 def performPCA(raw_data_array:ndarray, normalize_flag:bool = False, center_vector:ndarray = None, weight_vector:ndarray = None) -> dict:
 	# Compute information relevant to PCA analysis on the given raw data
 	# Verify the inputs
-	assert type(raw_data_array) == ndarray, "performPCA: Provided value for 'raw_data_array' must be a numpy.ndarry object"
+	assert type(raw_data_array) == ndarray, "performPCA: Provided value for 'raw_data_array' must be a numpy.ndarray object"
 	assert len(raw_data_array.shape) == 2, "performPCA: Provided value for 'raw_data_array' must be a 2-dimensional numpy array"
 	assert raw_data_array.shape[0] > 0, "performPCA: Provided value for 'raw_data_array' must have a non-zero number of points, i.e. at least 1 row"
 	assert raw_data_array.shape[1] > 0, "performPCA: Provided value for 'raw_data_array' must have a non-zero number of features, i.e. at least 1 column"
 	assert type(normalize_flag) == bool, "performPCA: Provided value for 'normalize_flag' must be a bool object"
 	if center_vector is not None:
-		assert type(center_vector) == ndarray, "performPCA: If provided, value for 'center_vector' must be a numpy.ndarry object"
+		assert type(center_vector) == ndarray, "performPCA: If provided, value for 'center_vector' must be a numpy.ndarray object"
 		assert len(center_vector.shape) == 1, "performPCA: If provided, value for 'center_vector' must be a 1-dimensional numpy array"
-		assert center_vector.shape[1] == raw_data_array.shape[1], "performPCA: If provided, value for 'center_vector' must be have length equal to number of columns in 'raw_data_array'"
+		assert center_vector.shape[0] == raw_data_array.shape[1], "performPCA: If provided, value for 'center_vector' must be have length equal to number of columns in 'raw_data_array'"
 		assert  -float("inf") < np_min(center_vector) and np_max(center_vector) < float("inf"), "performPCA: If provided, value for 'center_vector' must have all finite entries"
 	if weight_vector is not None:
-		assert type(weight_vector) == ndarray, "performPCA: If provided, value for 'weight_vector' must be a numpy.ndarry object"
+		assert type(weight_vector) == ndarray, "performPCA: If provided, value for 'weight_vector' must be a numpy.ndarray object"
 		assert len(weight_vector.shape) == 1, "performPCA: If provided, value for 'weight_vector' must be a 1-dimensional numpy array"
 		assert weight_vector.shape[0] == raw_data_array.shape[0], "performPCA: If provided, value for 'weight_vector' must be have length equal to number of rows in 'raw_data_array'"
 		assert np_min(weight_vector) >= 0, "performPCA: If provided, value for 'weight_vector' must have all non-negative entries"
