@@ -43,7 +43,7 @@ TABLE_NAME_CUMULATIVE_PERCENT_VARIANCES = "cumulative_percent_variances"
 ### Define a function generates a db file needed for estimateing the local dimension of each point in a data set ###
 ####################################################################################################################
 def generateDimensionDatabase(raw_data_array:ndarray, softmax_distance:Any) -> Union[PosixPath, WindowsPath]:
-	# Use PCA to ompute the information for estimating pointwise dimension and write it to a db file, return the path written to
+	# Use PCA to compute the information for estimating pointwise dimension and write it to a db file, return the path written to
 	# Verify the inputs
 	assert type(raw_data_array) == ndarray, "generateDimensionDatabase: Provided value for 'raw_data_array' must be a numpy.ndarray object"
 	assert len(raw_data_array.shape) == 2, "generateDimensionDatabase: Provided value for 'raw_data_array' must be a 2-dimensional numpy array"
@@ -103,21 +103,18 @@ def generateDimensionDatabase(raw_data_array:ndarray, softmax_distance:Any) -> U
 		appendRow(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY)
 		replaceRow(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, row_index = row_index, new_row = new_row)
 	
-	# Compute the pairwise distances between each data point
-	distance_array = zeros((n_rows, n_rows), dtype = float)
-	for index_1 in range(n_rows - 1):
-		for index_2 in range(index_1 + 1, n_rows):
-			current_distance = norm(raw_data_array[index_1, :] - raw_data_array[index_2, :])
-			distance_array[index_1, index_2] = current_distance
-			distance_array[index_2, index_1] = current_distance
-	
 	# Loop over the data points and compute the needed information
 	for row_index in range(n_rows):
 		# Set the center vector to be the current row
 		center_vector = raw_data_array[row_index, :]
 
+		# Compute the distances from the points to the center vector
+		distance_array = zeros(n_rows, dtype = float)
+		for other_row_index in range(n_rows):
+			distance_array[other_row_index] = norm(raw_data_array[other_row_index, :] - center_vector)
+
 		# Compute the weight vector using softmax on the distances
-		weight_vector = softmax(-(distance_array[row_index, :] / softmax_distance)**2)
+		weight_vector = softmax(-(distance_array / softmax_distance)**2)
 		
 		# Compute the needed PCA results
 		pca_results = performPCA(raw_data_array = raw_data_array, normalize_flag = False, center_vector = center_vector, weight_vector = weight_vector)
