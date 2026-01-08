@@ -39,9 +39,9 @@ TABLE_NAME_PROJECTED_DATA_ARRAY = "projected_data_array"
 TABLE_NAME_CUMULATIVE_PERCENT_VARIANCES = "cumulative_percent_variances"
 
 
-####################################################################################################################
-### Define a function generates a db file needed for estimateing the local dimension of each point in a data set ###
-####################################################################################################################
+###################################################################################################################
+### Define a function generates a db file needed for estimating the local dimension of each point in a data set ###
+###################################################################################################################
 def generateDimensionDatabase(raw_data_array:ndarray, softmax_distance:Any) -> Union[PosixPath, WindowsPath]:
 	# Use PCA to compute the information for estimating pointwise dimension and write it to a db file, return the path written to
 	# Verify the inputs
