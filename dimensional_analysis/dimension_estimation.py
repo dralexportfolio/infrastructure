@@ -3,7 +3,6 @@
 ##########################################
 # Add paths for internal modules
 # Import dependencies
-from locale import normalize
 from pathlib import Path
 from sys import path
 # Get the shared infrastructure folder

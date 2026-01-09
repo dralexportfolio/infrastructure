@@ -80,6 +80,7 @@ vector_field_2d_decorator = private_attributes_dec("_all_base_vector_locations_c
 												   "_getValue")							# internal functions
 
 # Define the class with private attributes
+@vector_field_2d_decorator
 class VectorField2D:
 	### Set the default values for the class ###
 	_DEFAULT_VALUES = {
