@@ -22,14 +22,14 @@ from PrivateAttributesDecorator import private_attributes_dec
 ### Define the polygon class as a basis for commonly used shapes ###
 ####################################################################
 # Create the decorator needed for making the attributes private
-polygon_decorator = private_attributes_dec("_bezel_attitude"            # class variables
-                                           "_bezel_size",
+polygon_decorator = private_attributes_dec("_bevel_attitude"            # class variables
+                                           "_bevel_size",
                                            "_n_edges_per_face",
                                            "_n_vertices",
                                            "_normal_vector_per_edge",
                                            "_normal_vector_per_face",
                                            "_patch_per_face",
-                                           "_preprocess_bezel_flag",
+                                           "_preprocess_bevel_flag",
                                            "_preprocess_sun_flag",
                                            "_raw_brightness_per_face",
                                            "_render_axis",
@@ -74,12 +74,12 @@ class Polygon:
             self._normal_vector_per_edge.append(normal_vector / norm(normal_vector))
 
         # Initialize flags indicating the preprocess state of the class
-        self._preprocess_bezel_flag = False
+        self._preprocess_bevel_flag = False
         self._preprocess_sun_flag = False
 
         # Initialize all other variables which will be used later in the class
-        self._bezel_attitude = None
-        self._bezel_size = None
+        self._bevel_attitude = None
+        self._bevel_size = None
         self._n_edges_per_face = None
         self._normal_vector_per_face = None
         self._patch_per_face = None
