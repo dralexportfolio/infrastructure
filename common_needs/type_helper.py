@@ -6,11 +6,15 @@ from numpy import float16, float32, float64, int8, int16, int32, int64
 from typing import Any
 
 
-#############################################################
-### Define a function for verifying if a value is numeric ###
-#############################################################
+############################################################################
+### Define functions needed for handling various types of numeric checks ###
+############################################################################
+# Define a function for verifying if a value is numeric
 def isNumeric(value_to_check:Any, include_numpy_flag:bool = False) -> bool:
 	# Determine if the provided value is of the allowed numeric type
+	# Verify the inputs
+	assert type(include_numpy_flag) == bool, "isNumeric: Provided value for 'include_numpy_flag' must be a bool object"
+
 	# Construct the list of allowed types
 	allowed_types = [float, int]
 	if include_numpy_flag == True:
@@ -21,6 +25,36 @@ def isNumeric(value_to_check:Any, include_numpy_flag:bool = False) -> bool:
 		
 	# Return the results
 	return allowed_type_flag
+
+
+#################################################################################
+### Define a helper function for comparing values within a rounding threshold ###
+#################################################################################
+def tolerantlyCompare(value_1:Any, operator:str, value_2:Any, threshold:Any = 10**-6, include_numpy_flag:bool = False) -> bool:
+	# Perform the needed comparison of the values to be within the given threshold
+	# Verify that relevant inputs are numeric
+	message_suffix = "a float or int object" if include_numpy_flag == False else "numeric"
+	assert isNumeric(value_1, include_numpy_flag = include_numpy_flag) == True, "tolerantlyCompare: Provided value for 'value_1' must be " + message_suffix
+	assert isNumeric(value_2, include_numpy_flag = include_numpy_flag) == True, "tolerantlyCompare: Provided value for 'value_2' must be " + message_suffix
+	assert isNumeric(threshold, include_numpy_flag = include_numpy_flag) == True, "tolerantlyCompare: Provided value for 'threshold' must be " + message_suffix
+
+	# Verify any additional conditions
+	assert operator in ["==", "!=", ">=", ">", "<=", "<"], "tolerantlyCompare: Provided value for 'operator' must be '==', '!=', '>=', '>', '<=' or '<'"
+	assert 0 <= threshold and threshold < float("inf"), "tolerantlyCompare: Provided value for 'threshold' must be non-negative and finite"
+
+	# Handle the various cases
+	if operator == "==":
+		return abs(value_1 - value_2) <= threshold
+	elif operator == "!=":
+		return abs(value_1 - value_2) > threshold
+	elif operator == ">=":
+		return value_1 >= value_2 - threshold
+	elif operator == ">":
+		return value_1 > value_2 - threshold
+	elif operator == "<=":
+		return value_1 <= value_2 + threshold
+	else:
+		return value_1 < value_2 + threshold
 
 
 #########################################################################################
