@@ -14,6 +14,7 @@ path.insert(0, str(infrastructure_folder.joinpath("common_needs")))
 from type_helper import isListWithNumericEntries, tolerantlyCompare
 
 # External modules
+from math import acos, pi
 from numpy import array, matmul
 from numpy.linalg import det, inv, norm
 from PrivateAttributesDecorator import private_attributes_dec
@@ -24,7 +25,7 @@ from typing import Any
 ### Define the polygon class as a basis for commonly used shapes ###
 ####################################################################
 # Create the decorator needed for making the attributes private
-polygon_decorator = private_attributes_dec("_bevel_attitude"			# class variables
+polygon_decorator = private_attributes_dec("_bevel_attitude"				# class variables
 										   "_bevel_size",
 										   "_n_edges_per_face",
 										   "_n_vertices",
@@ -44,20 +45,15 @@ polygon_decorator = private_attributes_dec("_bevel_attitude"			# class variables
 										   "_y_midpoint_per_edge",
 										   "_y_value_per_vertex",
 										   "_y_values_per_face",
-										   "_verifyInputs")				# internal functions
+										   "_processInputs")				# internal functions
 
 # Define the class with private attributes
 @polygon_decorator
 class Polygon:
 	### Initialize the class ###
 	def __init__(self, n_vertices:int, x_value_per_vertex:list, y_value_per_vertex:list):
-		# Verify the inputs
-		self._verifyInputs(n_vertices = n_vertices, x_value_per_vertex = x_value_per_vertex, y_value_per_vertex = y_value_per_vertex)
-
-		# Store the provided values
-		self._n_vertices = n_vertices
-		self._x_value_per_vertex = x_value_per_vertex
-		self._y_value_per_vertex = y_value_per_vertex
+		# Verify and store the inputs
+		self._processInputs(n_vertices = n_vertices, x_value_per_vertex = x_value_per_vertex, y_value_per_vertex = y_value_per_vertex)
 
 		# Compute the midpoints and externally facing unit normal vectors of each edge
 		# Initialize the needed lists
@@ -93,25 +89,25 @@ class Polygon:
 		self._x_values_per_face = None
 		self._y_values_per_face = None
 
-	### Define an internal function to verify that the provided inputs values are valid ###
-	def _verifyInputs(self, n_vertices:int, x_value_per_vertex:list, y_value_per_vertex:list):
+	### Define an internal function to verify and store that the provided inputs values are valid ###
+	def _processInputs(self, n_vertices:int, x_value_per_vertex:list, y_value_per_vertex:list):
 		# Verify the inputs provided upon class initialization
 		# Check the types and list lengths
-		assert type(n_vertices) == int, "Polygon::_verifyInputs: Provided value for 'n_vertices' must be an int object"
-		assert n_vertices >= 3, "Polygon::_verifyInputs: Provided value for 'n_vertices' must be >= 3"
-		assert isListWithNumericEntries(x_value_per_vertex, include_numpy_flag = True) == True, "Polygon::_verifyInputs: Provided value for 'x_value_per_vertex' must be a list object containing numeric entries"
-		assert len(x_value_per_vertex) == n_vertices, "Polygon::_verifyInputs: Provided value for 'x_value_per_vertex' must be a list of length equal to 'n_vertices'"
-		assert -float("inf") < min(x_value_per_vertex) and max(x_value_per_vertex) < float("inf"), "Polygon::_verifyInputs: Provided value for 'x_value_per_vertex' must be a list of all finite entries"
-		assert isListWithNumericEntries(y_value_per_vertex, include_numpy_flag = True) == True, "Polygon::_verifyInputs: Provided value for 'y_value_per_vertex' must be a list object containing numeric entries"
-		assert len(y_value_per_vertex) == n_vertices, "Polygon::_verifyInputs: Provided value for 'y_value_per_vertex' must be a list of length equal to 'n_vertices'"
-		assert -float("inf") < min(y_value_per_vertex) and max(y_value_per_vertex) < float("inf"), "Polygon::_verifyInputs: Provided value for 'y_value_per_vertex' must be a list of all finite entries"
+		assert type(n_vertices) == int, "Polygon::_processInputs: Provided value for 'n_vertices' must be an int object"
+		assert n_vertices >= 3, "Polygon::_processInputs: Provided value for 'n_vertices' must be >= 3"
+		assert isListWithNumericEntries(x_value_per_vertex, include_numpy_flag = True) == True, "Polygon::_processInputs: Provided value for 'x_value_per_vertex' must be a list object containing numeric entries"
+		assert len(x_value_per_vertex) == n_vertices, "Polygon::_processInputs: Provided value for 'x_value_per_vertex' must be a list of length equal to 'n_vertices'"
+		assert -float("inf") < min(x_value_per_vertex) and max(x_value_per_vertex) < float("inf"), "Polygon::_processInputs: Provided value for 'x_value_per_vertex' must be a list of all finite entries"
+		assert isListWithNumericEntries(y_value_per_vertex, include_numpy_flag = True) == True, "Polygon::_processInputs: Provided value for 'y_value_per_vertex' must be a list object containing numeric entries"
+		assert len(y_value_per_vertex) == n_vertices, "Polygon::_processInputs: Provided value for 'y_value_per_vertex' must be a list of length equal to 'n_vertices'"
+		assert -float("inf") < min(y_value_per_vertex) and max(y_value_per_vertex) < float("inf"), "Polygon::_processInputs: Provided value for 'y_value_per_vertex' must be a list of all finite entries"
 
 		# Make sure that all vertex value pairs are distinct
 		for index_1 in range(n_vertices - 1):
 			for index_2 in range(index_1 + 1, n_vertices):
 				delta_x = x_value_per_vertex[index_2] - x_value_per_vertex[index_1]
 				delta_y = y_value_per_vertex[index_2] - y_value_per_vertex[index_1]
-				assert delta_x**2 + delta_y**2 > 0, "Polygon::_verifyInputs: Provided values for 'x_value_per_vertex' and 'y_value_per_vertex' must represent distinct points in the plane"
+				assert delta_x**2 + delta_y**2 > 0, "Polygon::_processInputs: Provided values for 'x_value_per_vertex' and 'y_value_per_vertex' must represent distinct points in the plane"
 
 		# Make sure that none of the line segments defining the edges intersect each other
 		for index_1 in range(n_vertices - 1):
@@ -139,7 +135,7 @@ class Polygon:
 					condition_2 = tolerantlyCompare(1, "<=", needed_solution[0, 0])
 					condition_3 = tolerantlyCompare(needed_solution[1, 0], "<=", 0)
 					condition_4 = tolerantlyCompare(1, "<=", needed_solution[1, 0])
-					assert condition_1 or condition_2 or condition_3 or condition_4, "Polygon::_verifyInputs: Provided values for 'x_value_per_vertex' and 'y_value_per_vertex' must represent a set of line segments which do not intersect each other"
+					assert condition_1 or condition_2 or condition_3 or condition_4, "Polygon::_processInputs: Provided values for 'x_value_per_vertex' and 'y_value_per_vertex' must represent a set of line segments which do not intersect each other"
 				else:
 					# Either or 0 or infinitely many solutions because directions are parallel, make sure there are 0 solutions
 					# Create the matrix used to determine if the two edges lie on the same line
@@ -158,4 +154,45 @@ class Polygon:
 						condition_2 = tolerantlyCompare(1, "<=", start_2)
 						condition_3 = tolerantlyCompare(end_2, "<=", 0)
 						condition_4 = tolerantlyCompare(1, "<=", end_2)
-						assert (condition_1 or condition_2) and (condition_3 or condition_4), "Polygon::_verifyInputs: Provided values for 'x_value_per_vertex' and 'y_value_per_vertex' must represent a set of line segments which do not overlap when they lie on the same line"
+						assert (condition_1 or condition_2) and (condition_3 or condition_4), "Polygon::_processInputs: Provided values for 'x_value_per_vertex' and 'y_value_per_vertex' must represent a set of line segments which do not overlap when they lie on the same line"
+
+		# Cycle through the vertices on the boundary of the polygon and determine the total angle turned, keep order if CCW and reverse if CW
+		# Initialize the degree counter
+		degree_counter = 0
+		# Loop over the vertices and compute the signed degrees turned
+		for index in range(n_vertices):
+			# Get the vector defining the 1st edge
+			delta_x_1 = x_value_per_vertex[index_1 + 1] - x_value_per_vertex[index_1]
+			delta_y_1 = y_value_per_vertex[index_1 + 1] - y_value_per_vertex[index_1]
+			direction_1 = array([[delta_x_1], [delta_y_1]], dtype = float)
+			# Get the vector defining the 2nd edge
+			delta_x_2 = x_value_per_vertex[(index_2 + 1) % n_vertices] - x_value_per_vertex[index_2]
+			delta_y_2 = y_value_per_vertex[(index_2 + 1) % n_vertices] - y_value_per_vertex[index_2]
+			direction_2 = array([[delta_x_2], [delta_y_2]], dtype = float)
+			# Normalize the direction vectors
+			direction_1 /= norm(direction_1)
+			direction_2 /= norm(direction_2)
+			# Compute the cosine of the angle using the dot product
+			cos_angle = direction_1[0, 0] * direction_2[0, 0] + direction_1[1, 0] * direction_2[1, 0]
+			# Create the matrix used to determine the sign of the resulting angle
+			sign_matrix = array([[direction_1[0, 0], direction_2[0, 0]], [direction_1[1, 0], direction_2[1, 0]]], dtype = float)
+			# Update the degree counter accordingly
+			if det(sign_matrix) >= 0:
+				degree_counter += acos(cos_angle) * 180 / pi
+			else:
+				degree_counter -= acos(cos_angle) * 180 / pi
+		# Reverse the order of the vertices (if needed)
+		if degree_counter < 0:
+			x_value_per_vertex.reverse()
+			y_value_per_vertex.reverse()
+
+		# Store the provided values
+		self._n_vertices = n_vertices
+		self._x_value_per_vertex = x_value_per_vertex
+		self._y_value_per_vertex = y_value_per_vertex
+
+	### Define external functions which preprocess information for rendering ###
+	def preprocessBevelInfo(self, bevel_attitude:Any, bevel_size:Any):
+		# Preprocess all information related to the bevel
+		# Verify the inputs
+		pass
