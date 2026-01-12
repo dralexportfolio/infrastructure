@@ -271,10 +271,3 @@ class NaturalCubicSpline(Spline):
 ### Define function for overlaying multiple spline classes over a given range of x-values ###
 #############################################################################################
 
-'''
-x_values = [0, 3, 5, 9, 11]
-y_values = [1, -2, 0, 0, 4]
-spline = LinearSpline(x_values = x_values, y_values = y_values)
-spline.plot(x_lower = -3, x_upper = 15, save_flag = True, show_flag = False, used_engine = "matplotlib")
-spline.plot(x_lower = -3, x_upper = 15, save_flag = True, show_flag = False, used_engine = "plotly")
-'''

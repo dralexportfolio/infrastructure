@@ -252,17 +252,3 @@ def customSpectrum(parameter:Any, rgb_spectrum:list = DEFAULT_SPECTRUM) -> RGB:
 
 	# Return the results
 	return RGB((normalized_red, normalized_green, normalized_blue))
-
-'''
-print(customSpectrum(parameter = 0.0))
-print(customSpectrum(parameter = 0.1))
-print(customSpectrum(parameter = 0.2))
-print(customSpectrum(parameter = 0.3))
-print(customSpectrum(parameter = 0.4))
-print(customSpectrum(parameter = 0.5))
-print(customSpectrum(parameter = 0.6))
-print(customSpectrum(parameter = 0.7))
-print(customSpectrum(parameter = 0.8))
-print(customSpectrum(parameter = 0.9))
-print(customSpectrum(parameter = 1.0))
-'''
