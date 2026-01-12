@@ -141,39 +141,6 @@ class RGB:
 	def __str__(self) -> str:
 		# Return a string representation of this RGB object
 		return self.asStringTuple()
-		
-#print(RGB("rgb(0,24,255)"))
-#print(RGB("#3f5b12"))
-#print(RGB((32, 56, 180)))
-#print(RGB([0.1, 0.4, 0.6]))
-		
-		
-##################################################
-### Define a generalized RGB color scale class ###
-##################################################
-# Create the decorator needed for making the attributes private
-rgb_scale_decorator = private_attributes_dec("_rgb_values",				# class variables
-											 "_parameter_values")
-									   
-# Define the class with private attributes
-@rgb_scale_decorator
-class RGBScale:
-	### Initialize the class ###
-	def __init__(rgb_values:list, parameter_values:list = None):
-		# Verify the inputs
-		assert type(rgb_values) == list, "RGBScale::__init__: Provided value for 'rgb_values' must be a list object"
-		assert len(rgb_values) > 0, "RGBScale::__init__: Provided value for 'rgb_values' must be a non-empty list"
-		for rgb_value in rgb_values:
-			assert type(rgb_value) == RGB, "RGBScale::__init__: Provided value for 'rgb_values' must be a list of RGB objects"
-		if parameter_values is not None:
-			assert type(parameter_values) == list, "RGBScale::__init__: If provided, value for 'parameter_values' must be a list object"
-			assert len(parameter_values) == len(rgb_values), "RGBScale::__init__: If provided, value for 'parameter_values' must be of the same length as 'rgb_values'"
-			assert isListWithNumericEntries(parameter_values, include_numpy_flag = False) == True, "RGBScale::__init__: If provided, value for 'parameter_values' must be a list of float and int objects"
-			assert parameter_values == sorted(parameter_values, reverse = False), "RGBScale::__init__: If provided, value for 'parameter_values' must be an increasing list of numbers"
-			
-		# Store the provided values
-		self._rgb_values = rgb_values
-		self._parameter_values = parameter_values
 
 
 ##########################################################

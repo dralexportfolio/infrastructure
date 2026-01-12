@@ -11,7 +11,7 @@ infrastructure_folder = Path(__file__).parent.parent
 path.insert(0, str(infrastructure_folder.joinpath("common_needs")))
 
 # Internal modules
-from type_helper import isListWithNumericEntries, tolerantlyCompare
+from type_helper import isListWithNumericEntries, isNumeric, tolerantlyCompare
 
 # External modules
 from math import acos, pi
@@ -195,4 +195,55 @@ class Polygon:
 	def preprocessBevelInfo(self, bevel_attitude:Any, bevel_size:Any):
 		# Preprocess all information related to the bevel
 		# Verify the inputs
-		pass
+		assert isNumeric(bevel_attitude, include_numpy_flag = True) == True, "Polygon::preprocessBevelInfo: Provided value for 'bevel_attitude' must be numeric"
+		assert 0 <= bevel_attitude and bevel_attitude <= 75, "Polygon::preprocessBevelInfo: Provided value for 'bevel_attitude' must be >= 0 and <= 75"
+		assert isNumeric(bevel_size, include_numpy_flag = True) == True, "Polygon::preprocessBevelInfo: Provided value for 'bevel_size' must be numeric"
+		assert bevel_size > 0, "Polygon::preprocessBevelInfo: Provided value for 'bevel_size' must be positive"
+
+		# Store the provided values
+		self._bevel_attitude = bevel_attitude
+		self._bevel_size = bevel_size
+
+		# Set the preprocess flags to False and forget the previous sun information
+		self._preprocess_bevel_flag = False
+		self._preprocess_sun_flag = False
+		self._sun_angle = None
+		self._sun_attitude = None
+
+		# Compute the vertex locations for the interior shape created by the bevel
+		# Initialize the needed lists
+		x_interior_per_vertex = []
+		y_interior_per_vertex = []
+		# Compute the needed values
+		for index in range(self._n_vertices):
+			# Compute the shifted base points for the needed lines
+			shifted_x_1 = self._x_value_per_vertex[index - 1] - self._bevel_size * self._normal_vector_per_edge[index - 1][0, 0]
+			shifted_y_1 = self._y_value_per_vertex[index - 1] - self._bevel_size * self._normal_vector_per_edge[index - 1][1, 0]
+			shifted_x_2 = self._x_value_per_vertex[index] - self._bevel_size * self._normal_vector_per_edge[index][0, 0]
+			shifted_y_2 = self._y_value_per_vertex[index] - self._bevel_size * self._normal_vector_per_edge[index][1, 0]
+			# Get the vector defining the 1st edge
+			delta_x_1 = x_value_per_vertex[index] - x_value_per_vertex[index - 1]
+			delta_y_1 = y_value_per_vertex[index] - y_value_per_vertex[index - 1]
+			direction_1 = array([[delta_x_1], [delta_y_1]], dtype = float)
+			# Get the vector defining the 2nd edge
+			delta_x_2 = x_value_per_vertex[(index + 1) % n_vertices] - x_value_per_vertex[index]
+			delta_y_2 = y_value_per_vertex[(index + 1) % n_vertices] - y_value_per_vertex[index]
+			direction_2 = array([[delta_x_2], [delta_y_2]], dtype = float)
+			# Create the matrix and vector needed to solve the system
+			needed_matrix = array([[direction_1[0, 0], -direction_2[0, 0]], [direction_1[1, 0], -direction_2[1, 0]]], dtype = float)
+			needed_vector = array([[shifted_x_2 - shifted_x_1], [shifted_y_2 - shifted_y_1]], dtype = float)
+			# Handle the various cases
+			if tolerantlyCompare(det(needed_vector), "!=", 0):
+				# Not parallel lines so solve the needed system to get the intersection of the lines
+				needed_solution = matmul(inv(needed_matrix), needed_vector)
+				x_intersect = shifted_x_2 + direction_2[0, 0] * needed_solution[1, 0]
+				y_intersect = shifted_y_2 + direction_2[1, 0] * needed_solution[1, 0]
+			else:
+				# Parallel lines so just use the shifted base point
+				x_intersect = shifted_x_2
+				y_intersect = shifted_y_2
+			# Append intersections to the lists
+			x_interior_per_vertex.append(x_intersect)
+			y_interior_per_vertex.append(y_intersect)
+
+		# Store the vertices and normal vector for each face of the polygon
