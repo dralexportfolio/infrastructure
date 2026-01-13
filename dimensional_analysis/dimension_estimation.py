@@ -214,6 +214,7 @@ def plotCumulativeVariances(db_path:Union[PosixPath, WindowsPath], used_engine:s
 			plt.title("Mean " + plot_title)
 		plt.xlabel("number of principal directions")
 		plt.ylabel("cumulative percent variance")
+		plt.grid()
 		# Show the figure (if needed)
 		if show_flag == True:
 			plt.show()
@@ -304,6 +305,7 @@ def plotMarginalVariances(db_path:Union[PosixPath, WindowsPath], used_engine:str
 			plt.title("Mean " + plot_title)
 		plt.xlabel("number of principal directions")
 		plt.ylabel("marginal percent variance")
+		plt.grid()
 		# Show the figure (if needed)
 		if show_flag == True:
 			plt.show()
