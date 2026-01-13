@@ -8,6 +8,8 @@ from type_helper import isListWithNumericEntries, isNumeric
 # External modules
 from abc import ABC, abstractmethod
 import matplotlib.pyplot as plt
+from numpy import matmul, zeros
+from numpy.linalg import inv
 import plotly.graph_objects as go
 from PrivateAttributesDecorator import private_attributes_dec
 from typing import Any, Tuple
@@ -23,14 +25,16 @@ SPLINE_PRIVATE_ATTRIBUTES = ["_n_points",								# class variables
 							 "_findIndex"]								# private functions
 							 
 # Additional for linear spline class
-LINEAR_SPLINE_PRIVATE_ATTIRBUTES = ["_base_x_value_per_index",			# class variables
+LINEAR_SPLINE_PRIVATE_ATTRIBUTES = ["_base_x_value_per_index",			# class variables
 									"_base_y_value_per_index",
 									"_slope_per_index"]
 									
 # Additional for natural cubic spline class
-NATURAL_CUBIC_SPLINE_PRIVATE_ATTIRBUTES = ["_base_x_value_per_index",	# class variables
+NATURAL_CUBIC_SPLINE_PRIVATE_ATTRIBUTES = ["_base_x_value_per_index",	# class variables
 									       "_base_y_value_per_index",
-									       "_slope_per_index"]
+									       "_linear_coefficient_per_index",
+									       "_quadratic_coefficient_per_index",
+									       "_cubic_coefficient_per_index"]
 
 
 ########################################
@@ -208,7 +212,7 @@ class Spline(ABC):
 ### Define the concrete linear spline class ###
 ###############################################
 # Create the decorator needed for making the attributes private
-linear_spline_decorator = private_attributes_dec(*(SPLINE_PRIVATE_ATTRIBUTES + LINEAR_SPLINE_PRIVATE_ATTIRBUTES))	
+linear_spline_decorator = private_attributes_dec(*(SPLINE_PRIVATE_ATTRIBUTES + LINEAR_SPLINE_PRIVATE_ATTRIBUTES))
 
 # Define the class with private attributes
 @linear_spline_decorator
@@ -256,7 +260,7 @@ class LinearSpline(Spline):
 ### Define the concrete natural cubic spline class ###
 ######################################################
 # Create the decorator needed for making the attributes private
-natural_cubic_spline_decorator = private_attributes_dec(*(SPLINE_PRIVATE_ATTRIBUTES + NATURAL_CUBIC_SPLINE_PRIVATE_ATTIRBUTES))	
+natural_cubic_spline_decorator = private_attributes_dec(*(SPLINE_PRIVATE_ATTRIBUTES + NATURAL_CUBIC_SPLINE_PRIVATE_ATTRIBUTES))
 
 # Define the class with private attributes
 @natural_cubic_spline_decorator
@@ -265,9 +269,88 @@ class NaturalCubicSpline(Spline):
 	def __init__(self, x_values:list, y_values:list):
 		# Initialize via the super-class
 		super().__init__(x_values = x_values, y_values = y_values)
-		
-		
-#############################################################################################
-### Define function for overlaying multiple spline classes over a given range of x-values ###
-#############################################################################################
 
+		# Make sure there are at least 3 points defining this spline
+		assert self._n_points >= 3, "NaturalCubicSpline::__init__: At least 3 points must be provided in order to define a natural cubic spline"
+
+		# Compute the successive differences of the x-values and y-values
+		x_differences = [self._x_values[index + 1] - self._x_values[index] for index in range(self._n_points - 1)]
+		y_differences = [self._y_values[index + 1] - self._y_values[index] for index in range(self._n_points - 1)]
+
+		# Define the augmented matrix and vector needed for computing the augmented quadratic coefficients
+		# Initialize the needed storage
+		needed_matrix = zeros((self._n_points, self._n_points), dtype = float)
+		needed_vector = zeros((self._n_points, 1), dtype = float)
+		# Set the top and bottom rows of the matrix
+		needed_matrix[0, 0] = 1
+		needed_matrix[self._n_points - 1, self._n_points - 1] = 1
+		# Set all entries in the other rows
+		for index in range(1, self._n_points - 1):
+			# Handle the 3 entries of the matrix
+			needed_matrix[index, index - 1] = x_differences[index - 1]
+			needed_matrix[index, index] = 2 * (x_differences[index - 1] + x_differences[index])
+			needed_matrix[index, index + 1] = x_differences[index]
+			# Handle the only entry of the vector
+			needed_vector[index, 0] += 3 * y_differences[index] / x_differences[index]
+			needed_vector[index, 0] -= 3 * y_differences[index - 1] / x_differences[index - 1]
+
+		# Solve this system to get the augmented quadratic coefficients
+		needed_solution = matmul(inv(needed_matrix), needed_vector)
+		augmented_quadratic_coefficients = []
+		for index in range(self._n_points):
+			augmented_quadratic_coefficients.append(float(needed_solution[index, 0]))
+
+		# Compute the corresponding cubic coefficients
+		cubic_coefficients = []
+		for index in range(self._n_points - 1):
+			numerator = augmented_quadratic_coefficients[index + 1] - augmented_quadratic_coefficients[index]
+			denominator = 3 * x_differences[index]
+			cubic_coefficients.append(numerator / denominator)
+
+		# Compute the corresponding linear coefficients
+		linear_coefficients = []
+		for index in range(self._n_points - 1):
+			term_1 = y_differences[index] / x_differences[index]
+			term_2 = (2 * augmented_quadratic_coefficients[index] + augmented_quadratic_coefficients[index + 1]) * x_differences[index] / 3
+			linear_coefficients.append(term_1 - term_2)
+
+		# Pre-compute the base values and slope needed for each index section
+		self._base_x_value_per_index = {}
+		self._base_y_value_per_index = {}
+		self._linear_coefficient_per_index = {}
+		self._quadratic_coefficient_per_index = {}
+		self._cubic_coefficient_per_index = {}
+		for region_index in range(self._n_points + 1):
+			if region_index <= 1:
+				self._base_x_value_per_index[region_index] = self._x_values[0]
+				self._base_y_value_per_index[region_index] = self._y_values[0]
+				self._linear_coefficient_per_index[region_index] = linear_coefficients[0]
+				self._quadratic_coefficient_per_index[region_index] = augmented_quadratic_coefficients[0]
+				self._cubic_coefficient_per_index[region_index] = cubic_coefficients[0]
+			elif region_index >= self._n_points - 1:
+				self._base_x_value_per_index[region_index] = self._x_values[-2]
+				self._base_y_value_per_index[region_index] = self._y_values[-2]
+				self._linear_coefficient_per_index[region_index] = linear_coefficients[-1]
+				self._quadratic_coefficient_per_index[region_index] = augmented_quadratic_coefficients[-2]
+				self._cubic_coefficient_per_index[region_index] = cubic_coefficients[-1]
+			else:
+				self._base_x_value_per_index[region_index] = self._x_values[region_index - 1]
+				self._base_y_value_per_index[region_index] = self._y_values[region_index - 1]
+				self._linear_coefficient_per_index[region_index] = linear_coefficients[region_index - 1]
+				self._quadratic_coefficient_per_index[region_index] = augmented_quadratic_coefficients[region_index - 1]
+				self._cubic_coefficient_per_index[region_index] = cubic_coefficients[region_index - 1]
+
+	### Define concrete versions of the abstract super-class methods ###
+	def evaluate(self, x_value:Any) -> Any:
+		# Determine the y-value of the spline at the provided x-value
+		# Get the needed index via the super-class
+		region_index = super().evaluate(x_value = x_value)
+
+		# Compute the interpolated y-value
+		y_value = self._base_y_value_per_index[region_index]
+		y_value += self._linear_coefficient_per_index[region_index] * (x_value - self._base_x_value_per_index[region_index])
+		y_value += self._quadratic_coefficient_per_index[region_index] * (x_value - self._base_x_value_per_index[region_index])**2
+		y_value += self._cubic_coefficient_per_index[region_index] * (x_value - self._base_x_value_per_index[region_index])**3
+
+		# Return the result
+		return y_value
