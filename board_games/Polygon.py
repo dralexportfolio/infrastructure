@@ -16,7 +16,7 @@ from type_helper import isListWithNumericEntries, isNumeric, tolerantlyCompare
 
 # External modules
 from io import BytesIO
-from math import acos, cos, pi, sin, tan
+from math import acos, cos, pi, sin, sqrt, tan
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from numpy import array, matmul, zeros
@@ -32,6 +32,8 @@ from typing import Any
 # Create the decorator needed for making the attributes private
 polygon_decorator = private_attributes_dec("_bevel_attitude"				# class variables
 										   "_bevel_size",
+										   "_lower_x",
+										   "_lower_y",
 										   "_n_edges_per_face",
 										   "_n_vertices",
 										   "_normal_vector_per_edge",
@@ -44,6 +46,8 @@ polygon_decorator = private_attributes_dec("_bevel_attitude"				# class variable
 										   "_render_figure",
 										   "_sun_angle",
 										   "_sun_attitude",
+										   "_upper_x",
+										   "_upper_y",
 										   "_x_midpoint_per_edge",
 										   "_x_value_per_vertex",
 										   "_x_values_per_face",
@@ -83,6 +87,8 @@ class Polygon:
 		# Initialize all other variables which will be used later in the class
 		self._bevel_attitude = None
 		self._bevel_size = None
+		self._lower_x = None
+		self._lower_y = None
 		self._n_edges_per_face = None
 		self._normal_vector_per_face = None
 		self._patch_per_face = None
@@ -91,6 +97,8 @@ class Polygon:
 		self._render_figure = None
 		self._sun_angle = None
 		self._sun_attitude = None
+		self._upper_x = None
+		self._upper_y = None
 		self._x_values_per_face = None
 		self._y_values_per_face = None
 
@@ -295,17 +303,17 @@ class Polygon:
 			self._y_values_per_face.append(current_y_values)
 			self._normal_vector_per_face.append(current_normal_vector / norm(current_normal_vector))
 
-		# Compute the bounds of the render image
-		x_lower = min(self._x_value_per_vertex)
-		x_upper = max(self._x_value_per_vertex)
-		y_lower = min(self._y_value_per_vertex)
-		y_upper = max(self._y_value_per_vertex)
+		# Compute and store the bounds of the render image
+		self._lower_x = min(self._x_value_per_vertex)
+		self._lower_y = min(self._y_value_per_vertex)
+		self._upper_x = max(self._x_value_per_vertex)
+		self._upper_y = max(self._y_value_per_vertex)
 
 		# Create the figure and axis to which to render, crop it to the needed size (in normalized figure coordinates), and adjust the axis as needed
-		self._render_figure, self._render_axis = plt.subplots(figsize = (x_upper - x_lower, y_upper - y_lower))
+		self._render_figure, self._render_axis = plt.subplots(figsize = (self._upper_x - self._lower_x, self._upper_y - self._lower_y))
 		self._render_figure.subplots_adjust(left = 0, right = 1, bottom = 0, top = 1, wspace = 0, hspace = 0)
-		self._render_axis.set_xlim(left = x_lower, right = x_upper)
-		self._render_axis.set_ylim(bottom = y_lower, top = y_upper)
+		self._render_axis.set_xlim(left = self._lower_x, right = self._upper_x)
+		self._render_axis.set_ylim(bottom = self._lower_y, top = self._upper_y)
 		self._render_axis.axis("off")
 
 		# Create the patch objects without any color and save them for future use
@@ -418,6 +426,10 @@ class Polygon:
 		# Add in the number of vertices (and edges)
 		polygon_info["n_vertices"] = self._n_vertices
 
+		# Add in x-values and y-values of the vertices
+		polygon_info["x_value_per_vertex"] = self._x_value_per_vertex
+		polygon_info["y_value_per_vertex"] = self._y_value_per_vertex
+
 		# Add in the midpoint information for each edge
 		polygon_info["x_midpoint_per_edge"] = self._x_midpoint_per_edge
 		polygon_info["y_midpoint_per_edge"] = self._y_midpoint_per_edge
@@ -434,6 +446,15 @@ class Polygon:
 		polygon_info["preprocess_sun_flag"] = self._preprocess_sun_flag
 		polygon_info["sun_angle"] = self._sun_angle
 		polygon_info["sun_attitude"] = self._sun_attitude
+
+		# Add in the bounds of the render image
+		polygon_info["lower_x"] = self._lower_x
+		polygon_info["lower_y"] = self._lower_y
+		polygon_info["upper_x"] = self._upper_x
+		polygon_info["upper_y"] = self._upper_y
+
+		# Add in the render figure object
+		polygon_info["render_figure"] = self._render_figure
 
 		# Return the results
 		return polygon_info
@@ -454,3 +475,7 @@ TRIANGLE_1x1_SW = Polygon(n_vertices = 3, x_value_per_vertex = [0, 1, 0], y_valu
 # Define the 2x3 and 3x2 hexagons
 HEXAGON_2x3 = Polygon(n_vertices = 6, x_value_per_vertex = [1, 2, 2, 1, 0, 0], y_value_per_vertex = [0, 1, 2, 3, 2, 1])
 HEXAGON_3x2 = Polygon(n_vertices = 6, x_value_per_vertex = [1, 2, 3, 2, 1, 0], y_value_per_vertex = [0, 0, 1, 2, 2, 1])
+
+# Define the regular hexagons
+HEXAGON_REGULAR_TALL = Polygon(n_vertices = 6, x_value_per_vertex = [sqrt(3) / 2, sqrt(3), sqrt(3), sqrt(3) / 2, 0, 0], y_value_per_vertex = [0, 1 / 2, 3 / 2, 2, 3 / 2, 1 / 2])
+HEXAGON_REGULAR_WIDE = Polygon(n_vertices = 6, x_value_per_vertex = [1 / 2, 3 / 2, 2, 3 / 2, 1 / 2, 0], y_value_per_vertex = [0, 0, sqrt(3) / 2, sqrt(3), sqrt(3), sqrt(3) / 2])
