@@ -453,9 +453,6 @@ class Polygon:
 		polygon_info["upper_x"] = self._upper_x
 		polygon_info["upper_y"] = self._upper_y
 
-		# Add in the render figure object
-		polygon_info["render_figure"] = self._render_figure
-
 		# Return the results
 		return polygon_info
 
