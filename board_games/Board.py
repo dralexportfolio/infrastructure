@@ -24,10 +24,14 @@ from typing import Any
 ### Define the board class to render a group of polygons ###
 ############################################################
 # Create the decorator needed for making the attributes private
-board_decorator = private_attributes_dec("_bevel_attitude"				# class variables
+board_decorator = private_attributes_dec("_all_polygons",				# class variables
+										 "_bevel_attitude",
 										 "_bevel_size",
+										 "_n_polygons",
 										 "_sun_angle",
 										 "_sun_attitude",
+										 "_x_shift_per_polygon",
+										 "_y_shift_per_polygon",
 										 "_processInputs")				# internal functions
 
 # Define the class with private attributes
@@ -48,6 +52,12 @@ class Board:
 			assert type(all_polygons[index]) == Polygon, "Board::__init__: Provided value for 'all_polygons' must be a list of Polygon objects"
 			assert -float("inf") < x_shift_per_polygon[index] and x_shift_per_polygon[index] < float("inf"), "Board::__init__: Entries in provided value for 'x_shift_per_polygon' must be finite"
 			assert -float("inf") < y_shift_per_polygon[index] and y_shift_per_polygon[index] < float("inf"), "Board::__init__: Entries in provided value for 'y_shift_per_polygon' must be finite"
+
+		# Store the provided values
+		self._n_polygons = n_polygons
+		self._all_polygons = all_polygons
+		self._x_shift_per_polygon = x_shift_per_polygon
+		self._y_shift_per_polygon = y_shift_per_polygon
 
 from Polygon import SQUARE_1x1
 n_polygons = 4
