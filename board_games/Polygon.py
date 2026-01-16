@@ -470,10 +470,15 @@ class Polygon:
 		# Set the preprocess sun flag to True
 		self._preprocess_sun_flag = True
 
-	### Define an external function which renders the polygon ###
+	### Define external functions needed for rendering the polygon ###
+	def computeRenderInfo(self) -> dict:
+		# Return a dictionary of values relevant to the rendering of the polygon
+		# Initialize the dictionary of relevant information
+		render_info = {}
+
 	def render(self, dpi:int, min_brightness:Any = 0, max_brightness:Any = 1, tint_shade:RGB = RGB((255, 255, 255))) -> Image.Image:
 		# Return a PIL image render of the polygon with the preprocesses settings
-		# Only proceed if the bevel and sun information has been preprocessed
+		# Only proceed if the bevel and sun information have been preprocessed
 		assert self._preprocess_bevel_flag == True, "Polygon::render: Only able to render polygon image once bevel information has been preprocessed"
 		assert self._preprocess_sun_flag == True, "Polygon::render: Only able to render polygon image once sun information has been preprocessed"
 
