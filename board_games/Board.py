@@ -24,14 +24,22 @@ from typing import Any
 ### Define the board class to render a group of polygons ###
 ############################################################
 # Create the decorator needed for making the attributes private
-board_decorator = private_attributes_dec("_all_polygons",				# class variables
+board_decorator = private_attributes_dec("_all_bevel_info_flag",		# class variables
+										 "_all_polygons",
+										 "_all_sun_info_flag",
 										 "_bevel_attitude",
 										 "_bevel_size",
 										 "_n_polygons",
+										 "_render_axis",
+										 "_render_figure",
 										 "_sun_angle",
 										 "_sun_attitude",
+										 "_x_lower",
 										 "_x_shift_per_polygon",
+										 "_x_upper",
+										 "_y_lower",
 										 "_y_shift_per_polygon",
+										 "_y_upper",
 										 "_processInputs")				# internal functions
 
 # Define the class with private attributes
@@ -59,9 +67,30 @@ class Board:
 		self._x_shift_per_polygon = x_shift_per_polygon
 		self._y_shift_per_polygon = y_shift_per_polygon
 
+		# Determine if all bevel and sun information has already been preprocessed
+		# Initialize the flags to True
+		self._all_bevel_info_flag = True
+		self._all_sun_info_flag = True
+		# Loop over the polygons and update to False if not preprocessed
+		for polygon in self._all_polygons:
+			polygon_info = polygon.getInfo()
+			if polygon_info["preprocess_bevel_flag"] == False:
+				self._all_bevel_info_flag = False
+			if polygon_info["preprocess_sun_flag"] == False:
+				self._all_sun_info_flag = False
+
+	### Define functions for preprocessing bevel and sun information for all polygons ###
+
 from Polygon import SQUARE_1x1
+
 n_polygons = 4
-all_polygons = [SQUARE_1x1, SQUARE_1x1, SQUARE_1x1, SQUARE_1x1]
+all_polygons = [SQUARE_1x1.deepcopy(), SQUARE_1x1.deepcopy(), SQUARE_1x1.deepcopy(), SQUARE_1x1.deepcopy()]
+
+bevel_attitude = 25
+bevel_size = 0.1
+all_polygons[0].preprocessBevelInfo(bevel_attitude = bevel_attitude, bevel_size = bevel_size)
+print(all_polygons[1].getInfo())
+
 x_shift_per_polygon = [0, 1, 0, 1]
 y_shift_per_polygon = [0, 0, 1, 1]
 board = Board(n_polygons = n_polygons, all_polygons = all_polygons, x_shift_per_polygon = x_shift_per_polygon, y_shift_per_polygon = y_shift_per_polygon)

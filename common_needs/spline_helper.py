@@ -73,6 +73,12 @@ class Spline(ABC):
 		# Store the provided values
 		self._x_values = x_values
 		self._y_values = y_values
+
+	### Define a deepcopy function instead of the __deepcopy__ magic method to get around PrivateAttributesDecorator ###
+	@abstractmethod
+	def deepcopy(self):
+		# Create a copy of this object and return it
+		pass
 		
 	### Define needed concrete methods ###
 	def _findIndex(self, x_value:Any) -> int:
@@ -242,7 +248,17 @@ class LinearSpline(Spline):
 				self._base_x_value_per_index[region_index] = self._x_values[region_index - 1]
 				self._base_y_value_per_index[region_index] = self._y_values[region_index - 1]
 				self._slope_per_index[region_index] = (self._y_values[region_index] - self._y_values[region_index - 1]) / (self._x_values[region_index] - self._x_values[region_index - 1])
-		
+
+	### Define a deepcopy function instead of the __deepcopy__ magic method to get around PrivateAttributesDecorator ###
+	def deepcopy(self):
+		# Create a copy of this object and return it
+		# Initialize a Spline object with the same inputs
+		copy_of_self = type(self)(x_values = deepcopy(self._x_values),
+								  y_values = deepcopy(self._y_values))
+
+		# Return the copied object
+		return copy_of_self
+
 	### Define concrete versions of the abstract super-class methods ###
 	def evaluate(self, x_value:Any) -> Any:
 		# Determine the y-value of the spline at the provided x-value
@@ -339,6 +355,16 @@ class NaturalCubicSpline(Spline):
 				self._linear_coefficient_per_index[region_index] = linear_coefficients[region_index - 1]
 				self._quadratic_coefficient_per_index[region_index] = augmented_quadratic_coefficients[region_index - 1]
 				self._cubic_coefficient_per_index[region_index] = cubic_coefficients[region_index - 1]
+
+	### Define a deepcopy function instead of the __deepcopy__ magic method to get around PrivateAttributesDecorator ###
+	def deepcopy(self):
+		# Create a copy of this object and return it
+		# Initialize a Spline object with the same inputs
+		copy_of_self = type(self)(x_values = deepcopy(self._x_values),
+								  y_values = deepcopy(self._y_values))
+
+		# Return the copied object
+		return copy_of_self
 
 	### Define concrete versions of the abstract super-class methods ###
 	def evaluate(self, x_value:Any) -> Any:
