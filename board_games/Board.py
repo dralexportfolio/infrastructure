@@ -80,6 +80,11 @@ class Board:
 				self._all_sun_info_flag = False
 
 	### Define functions for preprocessing bevel and sun information for all polygons ###
+	def preprocessAllBevelInfo(self):
+		pass
+
+	def preprocessAllSunInfo(self):
+		pass
 
 from Polygon import SQUARE_1x1
 
