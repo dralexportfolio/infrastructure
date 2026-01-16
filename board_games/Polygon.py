@@ -471,10 +471,49 @@ class Polygon:
 		self._preprocess_sun_flag = True
 
 	### Define external functions needed for rendering the polygon ###
-	def computeRenderInfo(self) -> dict:
-		# Return a dictionary of values relevant to the rendering of the polygon
-		# Initialize the dictionary of relevant information
-		render_info = {}
+	def computeRenderInfo(self, min_brightness:Any = 0, max_brightness:Any = 1, tint_shade:RGB = RGB((255, 255, 255)), x_shift:Any = 0, y_shift:Any = 0) -> dict:
+		# Return a dictionary of values relevant to the rendering of the polygon (accounting for an optional shift)
+		# Only proceed if the bevel and sun information have been preprocessed
+		assert self._preprocess_bevel_flag == True, "Polygon::computeRenderInfo: Only able to return render information once bevel information has been preprocessed"
+
+		# Verify the inputs
+		assert isNumeric(min_brightness, include_numpy_flag = True) == True, "Polygon::computeRenderInfo: Provided value for 'min_brightness' must be numeric"
+		assert 0 <= min_brightness and min_brightness < 1, "Polygon::computeRenderInfo: Provided value for 'min_brightness' must be >= 0 and < 1"
+		assert isNumeric(max_brightness, include_numpy_flag = True) == True, "Polygon::computeRenderInfo: Provided value for 'max_brightness' must be numeric"
+		assert 0 < max_brightness and max_brightness <= 1, "Polygon::computeRenderInfo: Provided value for 'max_brightness' must be > 0 and <= 1"
+		assert max_brightness >= min_brightness, "Polygon::computeRenderInfo: Provided value for 'max_brightness' must be greater than or equal to provided value for 'min_brightness'"
+		assert type(tint_shade) == RGB, "Polygon::computeRenderInfo: Provided value for 'tint_shade' must be a RGB object"
+		assert isNumeric(x_shift, include_numpy_flag = True) == True, "Polygon::computeRenderInfo: Provided value for 'x_shift' must be numeric"
+		assert -float("inf") < x_shift and x_shift < float("inf"), "Polygon::computeRenderInfo: Provided value for 'x_shift' must be finite"
+		assert isNumeric(y_shift, include_numpy_flag = True) == True, "Polygon::computeRenderInfo: Provided value for 'y_shift' must be numeric"
+		assert -float("inf") < y_shift and y_shift < float("inf"), "Polygon::computeRenderInfo: Provided value for 'y_shift' must be finite"
+
+		# Initialize the dictionary of results with relevant face information
+		render_info = {
+			"n_faces": self._n_vertices + 1,
+			"x_values_per_face": self._x_values_per_face,
+			"y_values_per_face": self._y_values_per_face,
+			"rgb_values_per_face": []
+		}
+
+		# Add the face color information if the sun info has been preprocessed
+		# Get the tint shade values as a numpy array
+		tint_shade_array = array(tint_shade.asTupleFloat(), dtype = float)
+		# Compute the RGB values as a numpy array for each face
+		for index in range(self._n_vertices + 1):
+			# Compute the adjusted brightness for this face
+			# Compute the color needed for this face
+			if self._preprocess_sun_flag == True:
+				# Linearly interpolate between the minimum and maximum brightness values according to the raw brightness
+				adjusted_brightness = min_brightness + (max_brightness - min_brightness) * self._raw_brightness_per_face[index]
+			else:
+				# Raw brightness not computed because sun information not preprocessed, so just use the maximum brightness
+				adjusted_brightness = max_brightness
+			# Compute the RGB values and add to the needed list
+			render_info["rgb_values_per_face"].append(adjusted_brightness * tint_shade_array)
+
+		# Return the results
+		return render_info
 
 	def render(self, dpi:int, min_brightness:Any = 0, max_brightness:Any = 1, tint_shade:RGB = RGB((255, 255, 255))) -> Image.Image:
 		# Return a PIL image render of the polygon with the preprocesses settings
@@ -482,27 +521,16 @@ class Polygon:
 		assert self._preprocess_bevel_flag == True, "Polygon::render: Only able to render polygon image once bevel information has been preprocessed"
 		assert self._preprocess_sun_flag == True, "Polygon::render: Only able to render polygon image once sun information has been preprocessed"
 
-		# Verify the inputs
+		# Verify the inputs which won't be handled by computeRenderInfo
 		assert type(dpi) == int, "Polygon::render: Provided value for 'dpi' must be an int object"
 		assert 72 <= dpi and dpi <= 900, "Polygon::render: Provided value for 'dpi' must be >= 72 and <= 900"
-		assert isNumeric(min_brightness, include_numpy_flag = True) == True, "Polygon::render: Provided value for 'min_brightness' must be numeric"
-		assert 0 <= min_brightness and min_brightness < 1, "Polygon::render: Provided value for 'min_brightness' must be >= 0 and < 1"
-		assert isNumeric(max_brightness, include_numpy_flag = True) == True, "Polygon::render: Provided value for 'max_brightness' must be numeric"
-		assert 0 < max_brightness and max_brightness <= 1, "Polygon::render: Provided value for 'max_brightness' must be > 0 and <= 1"
-		assert max_brightness >= min_brightness, "Polygon::render: Provided value for 'max_brightness' must be greater than or equal to provided value for 'min_brightness'"
-		assert type(tint_shade) == RGB, "Polygon::render: Provided value for 'tint_shade' must be a RGB object"
 
-		# Get the tint shade values as a numpy array
-		tint_shade_array = array(tint_shade.asTupleFloat(), dtype = float)
+		# Perform additional input verification and compute the RGB colors using computeRenderInfo without any shift
+		rgb_values_per_face = self.computeRenderInfo(min_brightness = min_brightness, max_brightness = max_brightness, tint_shade = tint_shade, x_shift = 0, y_shift = 0)["rgb_values_per_face"]
 
 		# Draw each of the patches in the needed lighting
 		for index in range(self._n_vertices + 1):
-			# Compute the color needed for this face
-			adjusted_brightness = min_brightness + (max_brightness - min_brightness) * self._raw_brightness_per_face[index]
-			face_color = adjusted_brightness * tint_shade_array
-
-			# Adjust the color of the needed patch
-			self._patch_per_face[index].set_facecolor(face_color)
+			self._patch_per_face[index].set_facecolor(rgb_values_per_face[index])
 
 		# Redraw the canvas now that all faces have been updated
 		self._render_figure.canvas.draw_idle()
