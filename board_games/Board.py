@@ -34,5 +34,17 @@ board_decorator = private_attributes_dec("_bevel_attitude"				# class variables
 @board_decorator
 class Board:
 	### Initialize the class ###
-	def __init__(self):
-		pass
+	def __init__(self, n_polygons:int, all_polygons:list, x_shift_per_polygon:list, y_shift_per_polygon:list):
+		# Verify the inputs
+		assert type(n_poylgons) == int, "Board::__init__: Provided value for 'n_polygons' must be an int object"
+		assert n_polygons > 0, "Board::__init__: Provided value for 'n_polygons' must be positive"
+		assert type(all_polygons) == list, "Board::__init__: Provided value for 'all_polygons' must be a list object"
+		assert isListWithNumericEntries(x_shift_per_polygon, include_numpy_flag = True) == True, "Board::__init__: Provided value for 'x_shift_per_polygon' must be a list of numeric objects"
+		assert isListWithNumericEntries(y_shift_per_polygon, include_numpy_flag = True) == True, "Board::__init__: Provided value for 'y_shift_per_polygon' must be a list of numeric objects"
+		assert len(all_polygons) == n_polygons, "Board::__init__: Provided value for 'all_polygons' must be a list of length 'n_polygons'"
+		assert len(x_shift_per_polygon) == n_polygons, "Board::__init__: Provided value for 'x_shift_per_polygon' must be a list of length 'n_polygons'"
+		assert len(y_shift_per_polygon) == n_polygons, "Board::__init__: Provided value for 'y_shift_per_polygon' must be a list of length 'n_polygons'"
+		for index in range(n_polygons):
+			assert all_polygons[index] == Polygon, "Board::__init__: Provided value for 'all_polygons' must be a list of Polygon objects"
+			assert -float("inf") < x_shift_per_polygon[index] and x_shift_per_polygon[index] < float("inf"), "Board::__init__: Entries in provided value for 'x_shift_per_polygon' must be finite"
+			assert -float("inf") < y_shift_per_polygon[index] and y_shift_per_polygon[index] < float("inf"), "Board::__init__: Entries in provided value for 'y_shift_per_polygon' must be finite"

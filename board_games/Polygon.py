@@ -32,8 +32,6 @@ from typing import Any
 # Create the decorator needed for making the attributes private
 polygon_decorator = private_attributes_dec("_bevel_attitude"				# class variables
 										   "_bevel_size",
-										   "_lower_x",
-										   "_lower_y",
 										   "_n_edges_per_face",
 										   "_n_vertices",
 										   "_normal_vector_per_edge",
@@ -46,12 +44,14 @@ polygon_decorator = private_attributes_dec("_bevel_attitude"				# class variable
 										   "_render_figure",
 										   "_sun_angle",
 										   "_sun_attitude",
-										   "_upper_x",
-										   "_upper_y",
+										   "_x_lower",
 										   "_x_midpoint_per_edge",
+										   ",x_upper",
 										   "_x_value_per_vertex",
 										   "_x_values_per_face",
+										   "_y_lower",
 										   "_y_midpoint_per_edge",
+										   "_y_upper",
 										   "_y_value_per_vertex",
 										   "_y_values_per_face",
 										   "_processInputs")				# internal functions
@@ -87,8 +87,6 @@ class Polygon:
 		# Initialize all other variables which will be used later in the class
 		self._bevel_attitude = None
 		self._bevel_size = None
-		self._lower_x = None
-		self._lower_y = None
 		self._n_edges_per_face = None
 		self._normal_vector_per_face = None
 		self._patch_per_face = None
@@ -97,9 +95,11 @@ class Polygon:
 		self._render_figure = None
 		self._sun_angle = None
 		self._sun_attitude = None
-		self._upper_x = None
-		self._upper_y = None
+		self._x_lower = None
+		self._x_upper = None
 		self._x_values_per_face = None
+		self._y_lower = None
+		self._y_upper = None
 		self._y_values_per_face = None
 
 	### Define an internal function to verify and store that the provided inputs values are valid ###
@@ -204,6 +204,103 @@ class Polygon:
 		self._x_value_per_vertex = x_value_per_vertex
 		self._y_value_per_vertex = y_value_per_vertex
 
+	### Define external functions for transforming the x-values and y-values of the polygon ###
+	def rotate(self, angle:Any, x_center:Any = 0, y_center:Any = 0):
+		# Rotate the vertices the given number of degrees about the given center point
+		# Verify the inputs
+		assert isNumeric(angle, include_numpy_flag = True) == True, "Polygon::rotate: Provided value for 'angle' must be numeric"
+		assert -360 < angle and angle < 360, "Polygon::rotate: Provided value for 'angle' must be > -360 and < 360"
+		assert isNumeric(x_center, include_numpy_flag = True) == True, "Polygon::rotate: Provided value for 'x_center' must be numeric"
+		assert -float("inf") < x_center and x_center < float("inf"), "Polygon::rotate: Provided value for 'x_center' must be finite"
+		assert isNumeric(y_center, include_numpy_flag = True) == True, "Polygon::rotate: Provided value for 'y_center' must be numeric"
+		assert -float("inf") < y_center and y_center < float("inf"), "Polygon::rotate: Provided value for 'y_center' must be finite"
+
+		# Set the preprocess flags to False and forget the previous bevel and sun information
+		# Bevel info (in order of appearance from preprocessBevelInfo)
+		self._preprocess_bevel_flag = False
+		self._bevel_attitude = None
+		self._bevel_size = None
+		self._n_edges_per_face = None
+		self._x_values_per_face = None
+		self._y_values_per_face = None
+		self._normal_vector_per_face = None
+		self._x_lower = None
+		self._x_upper = None
+		self._y_lower = None
+		self._y_upper = None
+		self._render_figure = None
+		self._render_axis = None
+		self._patch_per_face = None
+		# Sun info (in order of appearance from preprocessSunInfo)
+		self._preprocess_sun_flag = False
+		self._sun_angle = None
+		self._sun_attitude = None
+		self._raw_brightness_per_face = None
+
+		# Get a shifted version of the stored x-values and y-values
+		shifted_x_value_per_vertex = [x_value - x_center for x_value in self._x_value_per_vertex]
+		shifted_y_value_per_vertex = [y_value - y_center for y_value in self._y_value_per_vertex]
+
+		# Compute the needed rotation transformation
+		rotated_x_value_per_vertex = []
+		rotated_y_value_per_vertex = []
+		for index in range(self._n_vertices):
+			# Get the needed x-value and y-value
+			x_value = shifted_x_value_per_vertex[index]
+			y_value = shifted_y_value_per_vertex[index]
+
+			# Apply the needed rotation and store
+			rotated_x_value_per_vertex.append(cos(angle * pi / 180) * x_value - sin(angle * pi / 180) * y_value)
+			rotated_y_value_per_vertex.append(sin(angle * pi / 180) * x_value + cos(angle * pi / 180) * y_value)
+
+		# Update the internally stored values by shifting back
+		self._x_value_per_vertex = [x_value + x_center for x_value in rotated_x_value_per_vertex]
+		self._y_value_per_vertex = [y_value + y_center for y_value in rotated_y_value_per_vertex]
+
+	def scale(self, factor:Any, x_center:Any = 0, y_center:Any = 0):
+		# Scale the vertices by the given factor about the given center point
+		# Verify the inputs
+		assert isNumeric(factor, include_numpy_flag = True) == True, "Polygon::scale: Provided value for 'factor' must be numeric"
+		assert 0 < factor and factor < float("inf"), "Polygon::scale: Provided value for 'factor' must be positive and finite"
+		assert isNumeric(x_center, include_numpy_flag = True) == True, "Polygon::scale: Provided value for 'x_center' must be numeric"
+		assert -float("inf") < x_center and x_center < float("inf"), "Polygon::scale: Provided value for 'x_center' must be finite"
+		assert isNumeric(y_center, include_numpy_flag = True) == True, "Polygon::scale: Provided value for 'y_center' must be numeric"
+		assert -float("inf") < y_center and y_center < float("inf"), "Polygon::scale: Provided value for 'y_center' must be finite"
+
+		# Set the preprocess flags to False and forget the previous bevel and sun information
+		# Bevel info (in order of appearance from preprocessBevelInfo)
+		self._preprocess_bevel_flag = False
+		self._bevel_attitude = None
+		self._bevel_size = None
+		self._n_edges_per_face = None
+		self._x_values_per_face = None
+		self._y_values_per_face = None
+		self._normal_vector_per_face = None
+		self._x_lower = None
+		self._x_upper = None
+		self._y_lower = None
+		self._y_upper = None
+		self._render_figure = None
+		self._render_axis = None
+		self._patch_per_face = None
+		# Sun info (in order of appearance from preprocessSunInfo)
+		self._preprocess_sun_flag = False
+		self._sun_angle = None
+		self._sun_attitude = None
+		self._raw_brightness_per_face = None
+
+		# Get a shifted version of the stored x-values and y-values
+		shifted_x_value_per_vertex = [x_value - x_center for x_value in self._x_value_per_vertex]
+		shifted_y_value_per_vertex = [y_value - y_center for y_value in self._y_value_per_vertex]
+
+		# Compute the needed scaling transformation
+		scaled_x_value_per_vertex = [factor * x_value for x_value in shifted_x_value_per_vertex]
+		scaled_y_value_per_vertex = [factor * y_value for y_value in shifted_y_value_per_vertex]
+
+		# Update the internally stored values by shifting back
+		self._x_value_per_vertex = [x_value + x_center for x_value in rotated_x_value_per_vertex]
+		self._y_value_per_vertex = [y_value + y_center for y_value in rotated_y_value_per_vertex]
+
 	### Define external functions which preprocess information for rendering ###
 	def preprocessBevelInfo(self, bevel_attitude:Any, bevel_size:Any):
 		# Preprocess all information related to the bevel
@@ -222,6 +319,7 @@ class Polygon:
 		self._preprocess_sun_flag = False
 		self._sun_angle = None
 		self._sun_attitude = None
+		self._raw_brightness_per_face = None
 
 		# Compute the vertex locations for the interior shape created by the bevel
 		# Initialize the needed lists
@@ -304,16 +402,16 @@ class Polygon:
 			self._normal_vector_per_face.append(current_normal_vector / norm(current_normal_vector))
 
 		# Compute and store the bounds of the render image
-		self._lower_x = min(self._x_value_per_vertex)
-		self._lower_y = min(self._y_value_per_vertex)
-		self._upper_x = max(self._x_value_per_vertex)
-		self._upper_y = max(self._y_value_per_vertex)
+		self._x_lower = min(self._x_value_per_vertex)
+		self._x_upper = max(self._x_value_per_vertex)
+		self._y_lower = min(self._y_value_per_vertex)
+		self._y_upper = max(self._y_value_per_vertex)
 
 		# Create the figure and axis to which to render, crop it to the needed size (in normalized figure coordinates), and adjust the axis as needed
-		self._render_figure, self._render_axis = plt.subplots(figsize = (self._upper_x - self._lower_x, self._upper_y - self._lower_y))
+		self._render_figure, self._render_axis = plt.subplots(figsize = (self._x_upper - self._x_lower, self._y_upper - self._y_lower))
 		self._render_figure.subplots_adjust(left = 0, right = 1, bottom = 0, top = 1, wspace = 0, hspace = 0)
-		self._render_axis.set_xlim(left = self._lower_x, right = self._upper_x)
-		self._render_axis.set_ylim(bottom = self._lower_y, top = self._upper_y)
+		self._render_axis.set_xlim(left = self._x_lower, right = self._x_upper)
+		self._render_axis.set_ylim(bottom = self._y_lower, top = self._y_upper)
 		self._render_axis.axis("off")
 
 		# Create the patch objects without any color and save them for future use
@@ -448,10 +546,10 @@ class Polygon:
 		polygon_info["sun_attitude"] = self._sun_attitude
 
 		# Add in the bounds of the render image
-		polygon_info["lower_x"] = self._lower_x
-		polygon_info["lower_y"] = self._lower_y
-		polygon_info["upper_x"] = self._upper_x
-		polygon_info["upper_y"] = self._upper_y
+		polygon_info["x_lower"] = self._x_lower
+		polygon_info["x_upper"] = self._x_upper
+		polygon_info["y_lower"] = self._y_lower
+		polygon_info["y_upper"] = self._y_upper
 
 		# Return the results
 		return polygon_info
