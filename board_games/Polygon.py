@@ -104,27 +104,6 @@ class Polygon:
 		self._y_upper = None
 		self._y_values_per_face = None
 
-	### Define a deepcopy function instead of the __deepcopy__ magic method to get around PrivateAttributesDecorator ###
-	def deepcopy(self):
-		# Create a copy of this object and return it
-		# Initialize a Polygon object with the same inputs
-		copy_of_self = type(self)(n_vertices = deepcopy(self._n_vertices),
-								  x_value_per_vertex = deepcopy(self._x_value_per_vertex),
-								  y_value_per_vertex = deepcopy(self._y_value_per_vertex))
-
-		# Preprocess the same bevel information (if needed)
-		if self._preprocess_bevel_flag == True:
-			copy_of_self.preprocessBevelInfo(bevel_attitude = deepcopy(self._bevel_attitude),
-											 bevel_size = deepcopy(self._bevel_size))
-
-		# Preprocess the same sun information (if needed)
-		if self._preprocess_sun_flag == True:
-			copy_of_self.preprocessSunInfo(sun_angle = deepcopy(self._sun_angle),
-										   sun_attitude = deepcopy(self._sun_attitude))
-
-		# Return the copied object
-		return copy_of_self
-
 	### Define an internal function to verify and store that the provided inputs values are valid ###
 	def _processInputs(self, n_vertices:int, x_value_per_vertex:list, y_value_per_vertex:list):
 		# Verify the inputs provided upon class initialization
@@ -609,6 +588,27 @@ class Polygon:
 
 		# Return the results
 		return polygon_info
+
+	### Define a deepcopy function compatible with PrivateAttributesDecorator ###
+	def deepcopy(self):
+		# Create a copy of this object and return it
+		# Initialize a Polygon object with the same inputs
+		copy_of_self = type(self)(n_vertices = deepcopy(self._n_vertices),
+								  x_value_per_vertex = deepcopy(self._x_value_per_vertex),
+								  y_value_per_vertex = deepcopy(self._y_value_per_vertex))
+
+		# Preprocess the same bevel information (if needed)
+		if self._preprocess_bevel_flag == True:
+			copy_of_self.preprocessBevelInfo(bevel_attitude = deepcopy(self._bevel_attitude),
+											 bevel_size = deepcopy(self._bevel_size))
+
+		# Preprocess the same sun information (if needed)
+		if self._preprocess_sun_flag == True:
+			copy_of_self.preprocessSunInfo(sun_angle = deepcopy(self._sun_angle),
+										   sun_attitude = deepcopy(self._sun_attitude))
+
+		# Return the copied object
+		return copy_of_self
 
 
 ###########################################################

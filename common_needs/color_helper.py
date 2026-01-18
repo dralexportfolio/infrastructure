@@ -90,34 +90,6 @@ class RGB:
 		self._red_value = red_value
 		self._green_value = green_value
 		self._blue_value = blue_value
-
-	### Define a deepcopy function instead of the __deepcopy__ magic method to get around PrivateAttributesDecorator ###
-	def deepcopy(self):
-		# Create a copy of this object and return it
-		# Initialize an RGB object with the same inputs
-		copy_of_self = type(self)((self._red_value, self._green_value, self._blue_value))
-
-		# Return the copied object
-		return copy_of_self
-
-	### Define helpful magic methods ###
-	def __eq__(self, other:Any) -> bool:
-		# Verify if this RGB object is equal to something else
-		if type(other) == type(self):
-			return str(self) == str(other)
-		else:
-			return False
-
-	def __neq__(self, other:Any) -> bool:
-		# Verify if this RGB object is equal to something else
-		if type(other) == type(self):
-			return str(self) != str(other)
-		else:
-			return True
-
-	def __str__(self) -> str:
-		# Return a string representation of this RGB object
-		return self.asStringTuple()
 		
 	### Define functions for giving the RGB values in various formats ###
 	def asStringHex(self) -> str:
@@ -151,6 +123,34 @@ class RGB:
 	def asTupleInt(self) -> Tuple[int, int, int]:
 		# Return RGB values as a tuple of values between 0 and 255
 		return (self._red_value, self._green_value, self._blue_value)
+
+	### Define helpful magic methods ###
+	def __eq__(self, other:Any) -> bool:
+		# Verify if this RGB object is equal to something else
+		if type(other) == type(self):
+			return str(self) == str(other)
+		else:
+			return False
+
+	def __neq__(self, other:Any) -> bool:
+		# Verify if this RGB object is equal to something else
+		if type(other) == type(self):
+			return str(self) != str(other)
+		else:
+			return True
+
+	def __str__(self) -> str:
+		# Return a string representation of this RGB object
+		return self.asStringTuple()
+
+	### Define a deepcopy function compatible with PrivateAttributesDecorator ###
+	def deepcopy(self):
+		# Create a copy of this object and return it
+		# Initialize an RGB object with the same inputs
+		copy_of_self = type(self)((self._red_value, self._green_value, self._blue_value))
+
+		# Return the copied object
+		return copy_of_self
 
 
 ##########################################################
