@@ -25,7 +25,7 @@ from typing import Any
 ############################################################
 # Create the decorator needed for making the attributes private
 board_decorator = private_attributes_dec("_all_bevel_info_flag",		# class variables
-										 "_all_polygons",
+										 "_all_deepcopy_polygons",
 										 "_all_sun_info_flag",
 										 "_bevel_attitude",
 										 "_bevel_size",
@@ -61,9 +61,12 @@ class Board:
 			assert -float("inf") < x_shift_per_polygon[index] and x_shift_per_polygon[index] < float("inf"), "Board::__init__: Entries in provided value for 'x_shift_per_polygon' must be finite"
 			assert -float("inf") < y_shift_per_polygon[index] and y_shift_per_polygon[index] < float("inf"), "Board::__init__: Entries in provided value for 'y_shift_per_polygon' must be finite"
 
+		# Create a list of deep copies of the provided polygons
+		all_deepcopy_polygons = [polygon.deepcopy() for polygon in all_polygons]
+
 		# Store the provided values
 		self._n_polygons = n_polygons
-		self._all_polygons = all_polygons
+		self._all_deepcopy_polygons = all_deepcopy_polygons
 		self._x_shift_per_polygon = x_shift_per_polygon
 		self._y_shift_per_polygon = y_shift_per_polygon
 
@@ -72,7 +75,7 @@ class Board:
 		self._all_bevel_info_flag = True
 		self._all_sun_info_flag = True
 		# Loop over the polygons and update to False if not preprocessed
-		for polygon in self._all_polygons:
+		for polygon in self._all_deepcopy_polygons:
 			polygon_info = polygon.getInfo()
 			if polygon_info["preprocess_bevel_flag"] == False:
 				self._all_bevel_info_flag = False
@@ -89,7 +92,7 @@ class Board:
 from Polygon import SQUARE_1x1
 
 n_polygons = 4
-all_polygons = [SQUARE_1x1.deepcopy(), SQUARE_1x1.deepcopy(), SQUARE_1x1.deepcopy(), SQUARE_1x1.deepcopy()]
+all_polygons = [SQUARE_1x1, SQUARE_1x1, SQUARE_1x1, SQUARE_1x1]
 
 bevel_attitude = 25
 bevel_size = 0.1
