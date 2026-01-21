@@ -58,10 +58,10 @@ class Board:
 		assert len(all_polygons) == n_polygons, "Board::__init__: Provided value for 'all_polygons' must be a list of length 'n_polygons'"
 		assert len(x_shift_per_polygon) == n_polygons, "Board::__init__: Provided value for 'x_shift_per_polygon' must be a list of length 'n_polygons'"
 		assert len(y_shift_per_polygon) == n_polygons, "Board::__init__: Provided value for 'y_shift_per_polygon' must be a list of length 'n_polygons'"
-		for index in range(n_polygons):
-			assert type(all_polygons[index]) == Polygon, "Board::__init__: Provided value for 'all_polygons' must be a list of Polygon objects"
-			assert -float("inf") < x_shift_per_polygon[index] and x_shift_per_polygon[index] < float("inf"), "Board::__init__: Entries in provided value for 'x_shift_per_polygon' must be finite"
-			assert -float("inf") < y_shift_per_polygon[index] and y_shift_per_polygon[index] < float("inf"), "Board::__init__: Entries in provided value for 'y_shift_per_polygon' must be finite"
+		for polygon_index in range(n_polygons):
+			assert type(all_polygons[polygon_index]) == Polygon, "Board::__init__: Provided value for 'all_polygons' must be a list of Polygon objects"
+			assert -float("inf") < x_shift_per_polygon[polygon_index] and x_shift_per_polygon[polygon_index] < float("inf"), "Board::__init__: Entries in provided value for 'x_shift_per_polygon' must be finite"
+			assert -float("inf") < y_shift_per_polygon[polygon_index] and y_shift_per_polygon[polygon_index] < float("inf"), "Board::__init__: Entries in provided value for 'y_shift_per_polygon' must be finite"
 
 		# Create a list of deep copies of the provided polygons
 		all_deepcopy_polygons = [polygon.deepcopy() for polygon in all_polygons]
@@ -71,6 +71,21 @@ class Board:
 		self._all_deepcopy_polygons = all_deepcopy_polygons
 		self._x_shift_per_polygon = x_shift_per_polygon
 		self._y_shift_per_polygon = y_shift_per_polygon
+
+		# Create a single deepcopy of each unique Polygon object hash
+		self._unique_polygons_by_hash = {}
+		self._hash_by_polygon = []
+		for polygon in all_polygons:
+			# Get the hash of this particular polygon and store it
+			polygon_hash = hash(polygon)
+			self._hash_by_polygon.append(polygon_hash)
+
+			# Create a deepcopy if this hash is new
+			if polygon_hash not in self._unique_polygons_by_hash:
+				self._unique_polygons_by_hash[polygon_hash] = polygon.deepcopy()
+
+		print(self._hash_by_polygon)
+		print(len(self._unique_polygons_by_hash))
 
 		# Determine if all bevel and sun information of all polygons have already been preprocessed
 		self._checkFlags()
@@ -124,8 +139,8 @@ class Board:
 			needed_indices = range(self._n_polygons)
 
 		# Update the information for the needed polygons
-		for index in needed_indices:
-			self._all_deepcopy_polygons[index].preprocessBevelInfo(bevel_attitude = bevel_attitude, bevel_size = bevel_size)
+		for needed_index in needed_indices:
+			self._all_deepcopy_polygons[needed_index].preprocessBevelInfo(bevel_attitude = bevel_attitude, bevel_size = bevel_size)
 
 		# Determine if all bevel and sun information of all polygons have already been preprocessed
 		self._checkFlags()
@@ -144,8 +159,8 @@ class Board:
 			needed_indices = range(self._n_polygons)
 
 		# Update the information for the needed polygons
-		for index in needed_indices:
-			self._all_deepcopy_polygons[index].preprocessSunInfo(sun_angle = sun_angle, sun_attitude = sun_attitude)
+		for needed_index in needed_indices:
+			self._all_deepcopy_polygons[needed_index].preprocessSunInfo(sun_angle = sun_angle, sun_attitude = sun_attitude)
 
 		# Determine if all bevel and sun information of all polygons have already been preprocessed
 		self._checkFlags()
@@ -245,4 +260,4 @@ board = Board(n_polygons = n_polygons, all_polygons = all_polygons, x_shift_per_
 
 board.preprocessBevelInfo(bevel_attitude = 25, bevel_size = 0.1)
 board.preprocessAllSunInfo(sun_angle = 120, sun_attitude = 35)
-board.render(dpi = 600, tint_shade = RGB((255, 0, 255))).show()
+board.render(dpi = 600, tint_shade = RGB((255, 255, 255))).show()
