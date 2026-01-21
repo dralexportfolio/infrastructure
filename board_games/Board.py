@@ -16,6 +16,8 @@ from Polygon import Polygon
 from type_helper import isListWithNumericEntries, isNumeric
 
 # External modules
+import matplotlib.pyplot as plt
+from PIL import Image
 from PrivateAttributesDecorator import private_attributes_dec
 from typing import Any
 
@@ -73,7 +75,7 @@ class Board:
 		# Compute the lower and upper x-values and y-values for the board
 		self._computeBounds()
 
-	### Define internal function for checking polygon flags and computing board bounds ###
+	### Define internal functions for checking polygon flags and computing board bounds ###
 	def _checkFlags(self):
 		# Check the preprocess flags of each polygon and determine if they are all True
 		# Initialize the flags to True
@@ -104,7 +106,7 @@ class Board:
 			self._y_lower = min(self._y_lower, polygon_info["y_lower"])
 			self._y_upper = max(self._y_upper, polygon_info["y_upper"])
 
-	### Define functions for preprocessing bevel and sun information for all polygons ###
+	### Define external functions for preprocessing bevel and sun information for all polygons ###
 	def preprocessBevelInfo(self, bevel_attitude:Any, bevel_size:Any, polygon_index:int = None):
 		# Preprocess all information related to the bevel for all polygons (or a specific one if index is provided)
 		# Verify the polygon index (and leave the other inputs to be verified by the polygons themselves)
@@ -112,21 +114,58 @@ class Board:
 			assert type(polygon_index) == int, "Board::preprocessBevelInfo: If provided, value for 'polygon_index' must be an int object"
 			assert 0 <= polygon_index and polygon_index < self._n_polygons, "Board::preprocessBevelInfo: If provided, value for 'polygon_index' must be non-negative and less than the number of polygons on the board (i.e. " + str(self._n_polygons) + ")"
 
-		# Handle the various cases
+		# Set the indices to loop over
 		if polygon_index is not None:
-			# Update the information for the given polygon
-			self._all_deepcopy_polygons[polygon_index].preprocessBevelInfo(bevel_attitude = bevel_attitude, bevel_size = bevel_size)
+			needed_indices = range(polygon_index, polygon_index + 1)
 		else:
-			# Update the information for all polygons
-			for polygon_index in range(self._n_polygons):
-				self._all_deepcopy_polygons[polygon_index].preprocessBevelInfo(bevel_attitude = bevel_attitude, bevel_size = bevel_size)
+			needed_indices = range(self._n_polygons)
+
+		# Update the information for the needed polygons
+		for index in needed_indices:
+			self._all_deepcopy_polygons[index].preprocessBevelInfo(bevel_attitude = bevel_attitude, bevel_size = bevel_size)
 
 		# Determine if all bevel and sun information of all polygons have already been preprocessed
 		self._checkFlags()
 
-	def preprocessAllSunInfo(self):
-	# Preprocess all information related to the sun for all polygons (or a specific one if index is provided)
-		pass
+	def preprocessAllSunInfo(self, sun_angle:Any, sun_attitude:Any, polygon_index:int = None):
+		# Preprocess all information related to the sun for all polygons (or a specific one if index is provided)
+		# Verify the polygon index (and leave the other inputs to be verified by the polygons themselves)
+		if polygon_index is not None:
+			assert type(polygon_index) == int, "Board::preprocessSunInfo: If provided, value for 'polygon_index' must be an int object"
+			assert 0 <= polygon_index and polygon_index < self._n_polygons, "Board::preprocessSunInfo: If provided, value for 'polygon_index' must be non-negative and less than the number of polygons on the board (i.e. " + str(self._n_polygons) + ")"
+
+		# Set the indices to loop over
+		if polygon_index is not None:
+			needed_indices = range(polygon_index, polygon_index + 1)
+		else:
+			needed_indices = range(self._n_polygons)
+
+		# Update the information for the needed polygons
+		for index in needed_indices:
+			self._all_deepcopy_polygons[index].preprocessSunInfo(sun_angle = sun_angle, sun_attitude = sun_attitude)
+
+		# Determine if all bevel and sun information of all polygons have already been preprocessed
+		self._checkFlags()
+
+	### Define an external function for rendering the board as a single image ###
+	def render(self, min_brightness:Any = 0, max_brightness:Any = 1, tint_shade:RGB = RGB((255, 255, 255))) -> Image.Image:
+		# Return a PIL image render of the board with the preprocessed settings
+		# Only proceed if all bevel and sun information has been preprocessed
+		assert self._all_bevel_info_flag == True, "Board::render: Only able to render board image once all bevel information has been preprocessed"
+		assert self._all_sun_info_flag == True, "Board::render: Only able to render board image once all sun information has been preprocessed"
+
+		# Verify the inputs which won't be handled by the polygon's computeRenderInfo method
+		assert type(dpi) == int, "Board::render: Provided value for 'dpi' must be an int object"
+		assert 72 <= dpi and dpi <= 900, "Board::render: Provided value for 'dpi' must be >= 72 and <= 900"
+
+		# Create the figure and axis to which to render, crop it to the needed size (in normalized figure coordinates), and adjust the axis as needed
+		self._render_figure, self._render_axis = plt.subplots(figsize = (self._x_upper - self._x_lower, self._y_upper - self._y_lower))
+		self._render_figure.subplots_adjust(left = 0, right = 1, bottom = 0, top = 1, wspace = 0, hspace = 0)
+		self._render_axis.set_xlim(left = self._x_lower, right = self._x_upper)
+		self._render_axis.set_ylim(bottom = self._y_lower, top = self._y_upper)
+		self._render_axis.axis("off")
+
+		# Perform additional input verification and compute the RGB colors using computeRenderInfo with the needed shift
 
 from Polygon import SQUARE_1x1
 

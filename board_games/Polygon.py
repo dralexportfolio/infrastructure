@@ -518,7 +518,7 @@ class Polygon:
 		return render_info
 
 	def render(self, dpi:int, min_brightness:Any = 0, max_brightness:Any = 1, tint_shade:RGB = RGB((255, 255, 255))) -> Image.Image:
-		# Return a PIL image render of the polygon with the preprocesses settings
+		# Return a PIL image render of the polygon with the preprocessed settings
 		# Only proceed if the bevel and sun information have been preprocessed
 		assert self._preprocess_bevel_flag == True, "Polygon::render: Only able to render polygon image once bevel information has been preprocessed"
 		assert self._preprocess_sun_flag == True, "Polygon::render: Only able to render polygon image once sun information has been preprocessed"
