@@ -66,6 +66,12 @@ class Polygon:
 		# Verify and store the inputs
 		self._processInputs(n_vertices = n_vertices, x_value_per_vertex = x_value_per_vertex, y_value_per_vertex = y_value_per_vertex)
 
+		# Compute and store the bounds of the render image
+		self._x_lower = min(self._x_value_per_vertex)
+		self._x_upper = max(self._x_value_per_vertex)
+		self._y_lower = min(self._y_value_per_vertex)
+		self._y_upper = max(self._y_value_per_vertex)
+
 		# Compute the midpoints and externally facing unit normal vectors of each edge
 		# Initialize the needed lists
 		self._x_midpoint_per_edge = []
@@ -97,11 +103,7 @@ class Polygon:
 		self._render_figure = None
 		self._sun_angle = None
 		self._sun_attitude = None
-		self._x_lower = None
-		self._x_upper = None
 		self._x_values_per_face = None
-		self._y_lower = None
-		self._y_upper = None
 		self._y_values_per_face = None
 
 	### Define an internal function to verify and store that the provided inputs values are valid ###
@@ -226,10 +228,6 @@ class Polygon:
 		self._x_values_per_face = None
 		self._y_values_per_face = None
 		self._normal_vector_per_face = None
-		self._x_lower = None
-		self._x_upper = None
-		self._y_lower = None
-		self._y_upper = None
 		self._render_figure = None
 		self._render_axis = None
 		self._patch_per_face = None
@@ -259,6 +257,12 @@ class Polygon:
 		self._x_value_per_vertex = [x_value + x_center for x_value in rotated_x_value_per_vertex]
 		self._y_value_per_vertex = [y_value + y_center for y_value in rotated_y_value_per_vertex]
 
+		# Update the bounds of the render image
+		self._x_lower = min(self._x_value_per_vertex)
+		self._x_upper = max(self._x_value_per_vertex)
+		self._y_lower = min(self._y_value_per_vertex)
+		self._y_upper = max(self._y_value_per_vertex)
+
 	def scale(self, factor:Any, x_center:Any = 0, y_center:Any = 0):
 		# Scale the vertices by the given factor about the given center point
 		# Verify the inputs
@@ -278,10 +282,6 @@ class Polygon:
 		self._x_values_per_face = None
 		self._y_values_per_face = None
 		self._normal_vector_per_face = None
-		self._x_lower = None
-		self._x_upper = None
-		self._y_lower = None
-		self._y_upper = None
 		self._render_figure = None
 		self._render_axis = None
 		self._patch_per_face = None
@@ -302,6 +302,12 @@ class Polygon:
 		# Update the internally stored values by shifting back
 		self._x_value_per_vertex = [x_value + x_center for x_value in rotated_x_value_per_vertex]
 		self._y_value_per_vertex = [y_value + y_center for y_value in rotated_y_value_per_vertex]
+
+		# Update the bounds of the render image
+		self._x_lower = min(self._x_value_per_vertex)
+		self._x_upper = max(self._x_value_per_vertex)
+		self._y_lower = min(self._y_value_per_vertex)
+		self._y_upper = max(self._y_value_per_vertex)
 
 	### Define external functions which preprocess information for rendering ###
 	def preprocessBevelInfo(self, bevel_attitude:Any, bevel_size:Any):
@@ -402,12 +408,6 @@ class Polygon:
 			self._x_values_per_face.append(current_x_values)
 			self._y_values_per_face.append(current_y_values)
 			self._normal_vector_per_face.append(current_normal_vector / norm(current_normal_vector))
-
-		# Compute and store the bounds of the render image
-		self._x_lower = min(self._x_value_per_vertex)
-		self._x_upper = max(self._x_value_per_vertex)
-		self._y_lower = min(self._y_value_per_vertex)
-		self._y_upper = max(self._y_value_per_vertex)
 
 		# Create the figure and axis to which to render, crop it to the needed size (in normalized figure coordinates), and adjust the axis as needed
 		self._render_figure, self._render_axis = plt.subplots(figsize = (self._x_upper - self._x_lower, self._y_upper - self._y_lower))

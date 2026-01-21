@@ -30,11 +30,12 @@ from typing import Any
 ############################################################
 # Create the decorator needed for making the attributes private
 board_decorator = private_attributes_dec("_all_bevel_info_flag",		# class variables
-										 "_all_deepcopy_polygons",
 										 "_all_sun_info_flag",
+										 "_hash_per_polygon",
 										 "_n_polygons",
 										 "_render_axis",
 										 "_render_figure",
+										 "_unique_polygons_per_hash",
 										 "_x_lower",
 										 "_x_shift_per_polygon",
 										 "_x_upper",
@@ -63,29 +64,22 @@ class Board:
 			assert -float("inf") < x_shift_per_polygon[polygon_index] and x_shift_per_polygon[polygon_index] < float("inf"), "Board::__init__: Entries in provided value for 'x_shift_per_polygon' must be finite"
 			assert -float("inf") < y_shift_per_polygon[polygon_index] and y_shift_per_polygon[polygon_index] < float("inf"), "Board::__init__: Entries in provided value for 'y_shift_per_polygon' must be finite"
 
-		# Create a list of deep copies of the provided polygons
-		all_deepcopy_polygons = [polygon.deepcopy() for polygon in all_polygons]
-
 		# Store the provided values
 		self._n_polygons = n_polygons
-		self._all_deepcopy_polygons = all_deepcopy_polygons
 		self._x_shift_per_polygon = x_shift_per_polygon
 		self._y_shift_per_polygon = y_shift_per_polygon
 
 		# Create a single deepcopy of each unique Polygon object hash
-		self._unique_polygons_by_hash = {}
-		self._hash_by_polygon = []
+		self._unique_polygons_per_hash = {}
+		self._hash_per_polygon = []
 		for polygon in all_polygons:
 			# Get the hash of this particular polygon and store it
 			polygon_hash = hash(polygon)
-			self._hash_by_polygon.append(polygon_hash)
+			self._hash_per_polygon.append(polygon_hash)
 
 			# Create a deepcopy if this hash is new
-			if polygon_hash not in self._unique_polygons_by_hash:
-				self._unique_polygons_by_hash[polygon_hash] = polygon.deepcopy()
-
-		print(self._hash_by_polygon)
-		print(len(self._unique_polygons_by_hash))
+			if polygon_hash not in self._unique_polygons_per_hash:
+				self._unique_polygons_per_hash[polygon_hash] = polygon.deepcopy()
 
 		# Determine if all bevel and sun information of all polygons have already been preprocessed
 		self._checkFlags()
@@ -100,9 +94,9 @@ class Board:
 		self._all_bevel_info_flag = True
 		self._all_sun_info_flag = True
 
-		# Loop over the polygons and update to False if not preprocessed
-		for polygon in self._all_deepcopy_polygons:
-			polygon_info = polygon.getInfo()
+		# Loop over the currently present polygon hashes and update to False if not preprocessed
+		for polygon_hash in set(self._hash_per_polygon):
+			polygon_info = self._unique_polygons_per_hash[polygon_hash].getInfo()
 			if polygon_info["preprocess_bevel_flag"] == False:
 				self._all_bevel_info_flag = False
 			if polygon_info["preprocess_sun_flag"] == False:
@@ -116,13 +110,25 @@ class Board:
 		self._y_lower = float("inf")
 		self._y_upper = -float("inf")
 
+		# Load up the bounds for each unique polygon hash
+		x_lower_per_hash = {}
+		x_upper_per_hash = {}
+		y_lower_per_hash = {}
+		y_upper_per_hash = {}
+		for polygon_hash in self._unique_polygons_per_hash:
+			polygon_info = self._unique_polygons_per_hash[polygon_hash].getInfo()
+			x_lower_per_hash[polygon_hash] = polygon_info["x_lower"]
+			x_upper_per_hash[polygon_hash] = polygon_info["x_upper"]
+			y_lower_per_hash[polygon_hash] = polygon_info["y_lower"]
+			y_upper_per_hash[polygon_hash] = polygon_info["y_upper"]
+
 		# Loop over the polygons and extract the needed information
 		for polygon_index in range(self._n_polygons):
-			polygon_info = self._all_deepcopy_polygons[polygon_index].getInfo()
-			self._x_lower = min(self._x_lower, polygon_info["x_lower"] + self._x_shift_per_polygon[polygon_index])
-			self._x_upper = max(self._x_upper, polygon_info["x_upper"] + self._x_shift_per_polygon[polygon_index])
-			self._y_lower = min(self._y_lower, polygon_info["y_lower"] + self._y_shift_per_polygon[polygon_index])
-			self._y_upper = max(self._y_upper, polygon_info["y_upper"] + self._y_shift_per_polygon[polygon_index])
+			polygon_hash = self._hash_per_polygon[polygon_index]
+			self._x_lower = min(self._x_lower, x_lower_per_hash[polygon_hash] + self._x_shift_per_polygon[polygon_index])
+			self._x_upper = max(self._x_upper, x_upper_per_hash[polygon_hash] + self._x_shift_per_polygon[polygon_index])
+			self._y_lower = min(self._y_lower, y_lower_per_hash[polygon_hash] + self._y_shift_per_polygon[polygon_index])
+			self._y_upper = max(self._y_upper, y_upper_per_hash[polygon_hash] + self._y_shift_per_polygon[polygon_index])
 
 	### Define external functions for preprocessing bevel and sun information for all polygons ###
 	def preprocessBevelInfo(self, bevel_attitude:Any, bevel_size:Any, polygon_index:int = None):
@@ -138,9 +144,35 @@ class Board:
 		else:
 			needed_indices = range(self._n_polygons)
 
+		# Initialize a dictionary where keys are non-updated hashes and values are updated hashes
+		updated_hashes = {}
+
 		# Update the information for the needed polygons
 		for needed_index in needed_indices:
-			self._all_deepcopy_polygons[needed_index].preprocessBevelInfo(bevel_attitude = bevel_attitude, bevel_size = bevel_size)
+			# Get the current polygon hash
+			polygon_hash = self._hash_per_polygon[needed_index]
+
+			# Proceed depending on if a new copy of the polygon needs to be created
+			if polygon_hash in updated_hashes:
+				# Get the new hash from the dictionary
+				new_polygon_hash = updated_hashes[polygon_hash]
+			else:
+				# Create a deepcopy of the needed polygon
+				new_polygon = self._unique_polygons_per_hash[self._hash_per_polygon[needed_index]].deepcopy()
+
+				# Apply the update to this polygon copy and get the new hash
+				new_polygon.preprocessBevelInfo(bevel_attitude = bevel_attitude, bevel_size = bevel_size)
+				new_polygon_hash = hash(new_polygon)
+
+				# Store the fact that the old hash became the new hash
+				updated_hashes[polygon_hash] = new_polygon_hash
+
+				# Add this polygon to the dictionary of unique polygons (if needed)
+				if new_polygon_hash not in self._unique_polygons_per_hash:
+					self._unique_polygons_per_hash[new_polygon_hash] = new_polygon
+
+			# Update the hash associated with this polygon index
+			self._hash_per_polygon[needed_index] = new_polygon_hash
 
 		# Determine if all bevel and sun information of all polygons have already been preprocessed
 		self._checkFlags()
@@ -158,9 +190,35 @@ class Board:
 		else:
 			needed_indices = range(self._n_polygons)
 
+		# Initialize a dictionary where keys are non-updated hashes and values are updated hashes
+		updated_hashes = {}
+
 		# Update the information for the needed polygons
 		for needed_index in needed_indices:
-			self._all_deepcopy_polygons[needed_index].preprocessSunInfo(sun_angle = sun_angle, sun_attitude = sun_attitude)
+			# Get the current polygon hash
+			polygon_hash = self._hash_per_polygon[needed_index]
+
+			# Proceed depending on if a new copy of the polygon needs to be created
+			if polygon_hash in updated_hashes:
+				# Get the new hash from the dictionary
+				new_polygon_hash = updated_hashes[polygon_hash]
+			else:
+				# Create a deepcopy of the needed polygon
+				new_polygon = self._unique_polygons_per_hash[self._hash_per_polygon[needed_index]].deepcopy()
+
+				# Apply the update to this polygon copy and get the new hash
+				new_polygon.preprocessSunInfo(sun_angle = sun_angle, sun_attitude = sun_attitude)
+				new_polygon_hash = hash(new_polygon)
+
+				# Store the fact that the old hash became the new hash
+				updated_hashes[polygon_hash] = new_polygon_hash
+
+				# Add this polygon to the dictionary of unique polygons (if needed)
+				if new_polygon_hash not in self._unique_polygons_per_hash:
+					self._unique_polygons_per_hash[new_polygon_hash] = new_polygon
+
+			# Update the hash associated with this polygon index
+			self._hash_per_polygon[needed_index] = new_polygon_hash
 
 		# Determine if all bevel and sun information of all polygons have already been preprocessed
 		self._checkFlags()
@@ -185,12 +243,15 @@ class Board:
 
 		# Loop over the polygons and render each associated patch
 		for polygon_index in range(self._n_polygons):
+			# Get the needed polygon object
+			needed_polygon = self._unique_polygons_per_hash[self._hash_per_polygon[polygon_index]]
+
 			# Perform additional input verification and compute the render information using computeRenderInfo with the needed shift
-			render_info = self._all_deepcopy_polygons[polygon_index].computeRenderInfo(min_brightness = min_brightness,
-																					   max_brightness = max_brightness,
-																					   tint_shade = tint_shade,
-																					   x_shift = self._x_shift_per_polygon[polygon_index],
-																					   y_shift = self._y_shift_per_polygon[polygon_index])
+			render_info = needed_polygon.computeRenderInfo(min_brightness = min_brightness,
+														   max_brightness = max_brightness,
+														   tint_shade = tint_shade,
+														   x_shift = self._x_shift_per_polygon[polygon_index],
+														   y_shift = self._y_shift_per_polygon[polygon_index])
 
 			# Extract all needed values
 			n_faces = render_info["n_faces"]
@@ -225,39 +286,3 @@ class Board:
 
 		# Return the result
 		return board_render
-
-
-
-from Polygon import SQUARE_1x1
-
-n_rows = 8
-n_cols = 8
-
-n_polygons = n_rows * n_cols
-all_polygons = [SQUARE_1x1 for _ in range(n_polygons)]
-
-x_shift_per_polygon = []
-y_shift_per_polygon = []
-x_shift = 0
-y_shift = 0
-while True:
-	x_shift_per_polygon.append(x_shift)
-	y_shift_per_polygon.append(y_shift)
-
-	x_shift += 1
-	if x_shift == n_cols:
-		x_shift = 0
-		y_shift += 1
-		if y_shift == n_rows:
-			break
-
-bevel_attitude = 25
-bevel_size = 0.1
-all_polygons[0].preprocessBevelInfo(bevel_attitude = bevel_attitude, bevel_size = bevel_size)
-print(all_polygons[1].getInfo())
-
-board = Board(n_polygons = n_polygons, all_polygons = all_polygons, x_shift_per_polygon = x_shift_per_polygon, y_shift_per_polygon = y_shift_per_polygon)
-
-board.preprocessBevelInfo(bevel_attitude = 25, bevel_size = 0.1)
-board.preprocessAllSunInfo(sun_angle = 120, sun_attitude = 35)
-board.render(dpi = 600, tint_shade = RGB((255, 255, 255))).show()
