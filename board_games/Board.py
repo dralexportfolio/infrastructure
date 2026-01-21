@@ -31,6 +31,7 @@ from typing import Any
 # Create the decorator needed for making the attributes private
 board_decorator = private_attributes_dec("_all_bevel_info_flag",		# class variables
 										 "_all_sun_info_flag",
+										 "_all_tint_shades",
 										 "_hash_per_polygon",
 										 "_n_polygons",
 										 "_render_axis",
@@ -68,6 +69,11 @@ class Board:
 		self._n_polygons = n_polygons
 		self._x_shift_per_polygon = x_shift_per_polygon
 		self._y_shift_per_polygon = y_shift_per_polygon
+
+		# Store white as the default tint shade for each polygon
+		self._all_tint_shades = []
+		for _ in range(self._n_polygons):
+			self._all_tint_shades.append(RGB((255, 255, 255)))
 
 		# Create a single deepcopy of each unique Polygon object hash
 		self._unique_polygons_per_hash = {}
@@ -223,8 +229,26 @@ class Board:
 		# Determine if all bevel and sun information of all polygons have already been preprocessed
 		self._checkFlags()
 
-	### Define an external function for rendering the board as a single image ###
-	def render(self, dpi:int, min_brightness:Any = 0, max_brightness:Any = 1, tint_shade:RGB = RGB((255, 255, 255))) -> Image.Image:
+	### Define external functions for rendering the board as a single image ###
+	def setTintShade(self, tint_shade:RGB, polygon_index:int = None):
+		# Set the tint shade for all polygons (or a specific one if index is provided)
+		# Verify the inputs
+		assert type(tint_shade) == RGB, "Board::setTintShade: Provided value for 'tint_shade' must be an RGB object"
+		if polygon_index is not None:
+			assert type(polygon_index) == int, "Board::setTintShade: If provided, value for 'polygon_index' must be an int object"
+			assert 0 <= polygon_index and polygon_index < self._n_polygons, "Board::setTintShade: If provided, value for 'polygon_index' must be non-negative and less than the number of polygons on the board (i.e. " + str(self._n_polygons) + ")"
+
+		# Set the indices to loop over
+		if polygon_index is not None:
+			needed_indices = range(polygon_index, polygon_index + 1)
+		else:
+			needed_indices = range(self._n_polygons)
+
+		# Update the tint shades accordingly
+		for needed_index in needed_indices:
+			self._all_tint_shades[needed_index] = tint_shade
+
+	def render(self, dpi:int, min_brightness:Any = 0, max_brightness:Any = 1) -> Image.Image:
 		# Return a PIL image render of the board with the preprocessed settings
 		# Only proceed if all bevel and sun information has been preprocessed
 		assert self._all_bevel_info_flag == True, "Board::render: Only able to render board image once all bevel information has been preprocessed"
@@ -249,7 +273,7 @@ class Board:
 			# Perform additional input verification and compute the render information using computeRenderInfo with the needed shift
 			render_info = needed_polygon.computeRenderInfo(min_brightness = min_brightness,
 														   max_brightness = max_brightness,
-														   tint_shade = tint_shade,
+														   tint_shade = self._all_tint_shades[polygon_index],
 														   x_shift = self._x_shift_per_polygon[polygon_index],
 														   y_shift = self._y_shift_per_polygon[polygon_index])
 
