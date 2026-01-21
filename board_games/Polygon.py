@@ -48,7 +48,7 @@ polygon_decorator = private_attributes_dec("_bevel_attitude"				# class variable
 										   "_sun_attitude",
 										   "_x_lower",
 										   "_x_midpoint_per_edge",
-										   ",x_upper",
+										   "_x_upper",
 										   "_x_value_per_vertex",
 										   "_x_values_per_face",
 										   "_y_lower",
@@ -594,6 +594,40 @@ class Polygon:
 
 		# Return the results
 		return polygon_info
+
+	### Define helpful magic methods ###
+	def __hash__(self) -> int:
+		# Compute a hash of the stored polygon-related values
+		# Initialize a string of relevant values
+		string_to_hash = ""
+
+		# Add in the relevant information
+		string_to_hash += "(n_vertices," + str(self._n_vertices) + ")"
+		string_to_hash += "(x_value_per_vertex," + str(self._x_value_per_vertex) + ")"
+		string_to_hash += "(y_value_per_vertex," + str(self._y_value_per_vertex) + ")"
+		string_to_hash += "(preprocess_bevel_flag," + str(self._preprocess_bevel_flag) + ")"
+		string_to_hash += "(bevel_attitude," + str(self._bevel_attitude) + ")"
+		string_to_hash += "(bevel_size," + str(self._bevel_size) + ")"
+		string_to_hash += "(preprocess_sun_flag," + str(self._preprocess_sun_flag) + ")"
+		string_to_hash += "(sun_angle," + str(self._sun_angle) + ")"
+		string_to_hash += "(sun_attitude," + str(self._sun_attitude) + ")"
+
+		# Return a hash of the above string
+		return hash(string_to_hash)
+
+	def __eq__(self, other:Any) -> bool:
+		# Verify if this Polygon object is equal to something else
+		if type(other) == type(self):
+			return hash(self) == hash(other)
+		else:
+			return False
+
+	def __neq__(self, other:Any) -> bool:
+		# Verify if this Polygon object is not equal to something else
+		if type(other) == type(self):
+			return hash(self) != hash(other)
+		else:
+			return True
 
 	### Define a deepcopy function compatible with PrivateAttributesDecorator ###
 	def deepcopy(self):

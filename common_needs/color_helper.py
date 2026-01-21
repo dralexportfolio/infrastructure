@@ -125,17 +125,21 @@ class RGB:
 		return (self._red_value, self._green_value, self._blue_value)
 
 	### Define helpful magic methods ###
+	def __hash__(self) -> int:
+		# Compute a hash of the stored RGB values
+		return hash((self._red_value, self._green_value, self._blue_value))
+
 	def __eq__(self, other:Any) -> bool:
 		# Verify if this RGB object is equal to something else
 		if type(other) == type(self):
-			return str(self) == str(other)
+			return hash(self) == hash(other)
 		else:
 			return False
 
 	def __neq__(self, other:Any) -> bool:
-		# Verify if this RGB object is equal to something else
+		# Verify if this RGB object is not equal to something else
 		if type(other) == type(self):
-			return str(self) != str(other)
+			return hash(self) != hash(other)
 		else:
 			return True
 
