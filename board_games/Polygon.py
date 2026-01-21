@@ -19,8 +19,8 @@ from type_helper import isListWithNumericEntries, isNumeric, tolerantlyCompare
 from copy import deepcopy
 from io import BytesIO
 from math import acos, cos, pi, sin, sqrt, tan
-import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import matplotlib.pyplot as plt
 from numpy import array, matmul, zeros
 from numpy.linalg import det, inv, norm
 from PIL import Image
@@ -72,13 +72,13 @@ class Polygon:
 		self._y_midpoint_per_edge = []
 		self._normal_vector_per_edge = []
 		# Compute the midpoint values
-		for index in range(self._n_vertices):
+		for edge_index in range(self._n_vertices):
 			# Compute the midpoint coordinates
-			self._x_midpoint_per_edge.append((self._x_value_per_vertex[index] + self._x_value_per_vertex[(index + 1) % self._n_vertices]) / 2)
-			self._y_midpoint_per_edge.append((self._y_value_per_vertex[index] + self._y_value_per_vertex[(index + 1) % self._n_vertices]) / 2)
+			self._x_midpoint_per_edge.append((self._x_value_per_vertex[edge_index] + self._x_value_per_vertex[(edge_index + 1) % self._n_vertices]) / 2)
+			self._y_midpoint_per_edge.append((self._y_value_per_vertex[edge_index] + self._y_value_per_vertex[(edge_index + 1) % self._n_vertices]) / 2)
 			# Compute the externally facing unit normal vector
-			x_component = self._y_value_per_vertex[(index + 1) % self._n_vertices] - self._y_value_per_vertex[index]
-			y_component = self._x_value_per_vertex[index] - self._x_value_per_vertex[(index + 1) % self._n_vertices]
+			x_component = self._y_value_per_vertex[(edge_index + 1) % self._n_vertices] - self._y_value_per_vertex[edge_index]
+			y_component = self._x_value_per_vertex[edge_index] - self._x_value_per_vertex[(edge_index + 1) % self._n_vertices]
 			normal_vector = array([[x_component], [y_component]], dtype = float)
 			self._normal_vector_per_edge.append(normal_vector / norm(normal_vector))
 
@@ -118,29 +118,29 @@ class Polygon:
 		assert -float("inf") < min(y_value_per_vertex) and max(y_value_per_vertex) < float("inf"), "Polygon::_processInputs: Provided value for 'y_value_per_vertex' must be a list of all finite entries"
 
 		# Make sure that all vertex value pairs are distinct
-		for index_1 in range(n_vertices - 1):
-			for index_2 in range(index_1 + 1, n_vertices):
-				delta_x = x_value_per_vertex[index_2] - x_value_per_vertex[index_1]
-				delta_y = y_value_per_vertex[index_2] - y_value_per_vertex[index_1]
+		for vertex_index_1 in range(n_vertices - 1):
+			for vertex_index_2 in range(vertex_index_1 + 1, n_vertices):
+				delta_x = x_value_per_vertex[vertex_index_2] - x_value_per_vertex[vertex_index_1]
+				delta_y = y_value_per_vertex[vertex_index_2] - y_value_per_vertex[vertex_index_1]
 				assert delta_x**2 + delta_y**2 > 0, "Polygon::_processInputs: Provided values for 'x_value_per_vertex' and 'y_value_per_vertex' must represent distinct points in the plane"
 
 		# Make sure that none of the line segments defining the edges intersect each other
-		for index_1 in range(n_vertices - 1):
+		for vertex_index_1 in range(n_vertices - 1):
 			# Get the vector defining the 1st edge
-			delta_x_1 = x_value_per_vertex[index_1 + 1] - x_value_per_vertex[index_1]
-			delta_y_1 = y_value_per_vertex[index_1 + 1] - y_value_per_vertex[index_1]
+			delta_x_1 = x_value_per_vertex[vertex_index_1 + 1] - x_value_per_vertex[vertex_index_1]
+			delta_y_1 = y_value_per_vertex[vertex_index_1 + 1] - y_value_per_vertex[vertex_index_1]
 			direction_1 = array([[delta_x_1], [delta_y_1]], dtype = float)
 
 			# Loop over the other edges
-			for index_2 in range(index_1 + 1, n_vertices):
+			for vertex_index_2 in range(vertex_index_1 + 1, n_vertices):
 				# Get the vector defining the 2nd edge
-				delta_x_2 = x_value_per_vertex[(index_2 + 1) % n_vertices] - x_value_per_vertex[index_2]
-				delta_y_2 = y_value_per_vertex[(index_2 + 1) % n_vertices] - y_value_per_vertex[index_2]
+				delta_x_2 = x_value_per_vertex[(vertex_index_2 + 1) % n_vertices] - x_value_per_vertex[vertex_index_2]
+				delta_y_2 = y_value_per_vertex[(vertex_index_2 + 1) % n_vertices] - y_value_per_vertex[vertex_index_2]
 				direction_2 = array([[delta_x_2], [delta_y_2]], dtype = float)
 
 				# Create the matrix and vector needed to solve the relevant system
 				needed_matrix = array([[direction_1[0, 0], -direction_2[0, 0]], [direction_1[1, 0], -direction_2[1, 0]]], dtype = float)
-				needed_vector = array([[x_value_per_vertex[index_2] - x_value_per_vertex[index_1]], [y_value_per_vertex[index_2] - y_value_per_vertex[index_1]]], dtype = float)
+				needed_vector = array([[x_value_per_vertex[vertex_index_2] - x_value_per_vertex[vertex_index_1]], [y_value_per_vertex[vertex_index_2] - y_value_per_vertex[vertex_index_1]]], dtype = float)
 
 				# Handle the various cases
 				if tolerantlyCompare(det(needed_matrix), "!=", 0, include_numpy_flag = True):
@@ -159,10 +159,10 @@ class Polygon:
 					if tolerantlyCompare(det(parallelogram_matrix), "==", 0, include_numpy_flag = True):
 						# Parametrize the line so that the 1st edge is from 0 to 1, then find the bounds for the 2nd edge
 						if direction_1[0, 0] != 0:
-							start_2 = (x_value_per_vertex[index_2] - x_value_per_vertex[index_1]) / direction_1[0, 0]
+							start_2 = (x_value_per_vertex[vertex_index_2] - x_value_per_vertex[vertex_index_1]) / direction_1[0, 0]
 							end_2 = start_2 + direction_2[0, 0] / direction_1[0, 0]
 						else:
-							start_2 = (y_value_per_vertex[index_2] - y_value_per_vertex[index_1]) / direction_1[1, 0]
+							start_2 = (y_value_per_vertex[vertex_index_2] - y_value_per_vertex[vertex_index_1]) / direction_1[1, 0]
 							end_2 = start_2 + direction_2[1, 0] / direction_1[1, 0]
 						# Determine if the line segments overlap and raise error if so
 						condition_1 = tolerantlyCompare(start_2, "<=", 0, include_numpy_flag = True)
@@ -175,14 +175,14 @@ class Polygon:
 		# Initialize the degree counter
 		degree_counter = 0
 		# Loop over the vertices and compute the signed degrees turned
-		for index in range(n_vertices):
+		for vertex_index in range(n_vertices):
 			# Get the vector defining the 1st edge
-			delta_x_1 = x_value_per_vertex[index_1 + 1] - x_value_per_vertex[index_1]
-			delta_y_1 = y_value_per_vertex[index_1 + 1] - y_value_per_vertex[index_1]
+			delta_x_1 = x_value_per_vertex[vertex_index] - x_value_per_vertex[vertex_index - 1]
+			delta_y_1 = y_value_per_vertex[vertex_index] - y_value_per_vertex[vertex_index - 1]
 			direction_1 = array([[delta_x_1], [delta_y_1]], dtype = float)
 			# Get the vector defining the 2nd edge
-			delta_x_2 = x_value_per_vertex[(index_2 + 1) % n_vertices] - x_value_per_vertex[index_2]
-			delta_y_2 = y_value_per_vertex[(index_2 + 1) % n_vertices] - y_value_per_vertex[index_2]
+			delta_x_2 = x_value_per_vertex[(vertex_index + 1) % n_vertices] - x_value_per_vertex[vertex_index]
+			delta_y_2 = y_value_per_vertex[(vertex_index + 1) % n_vertices] - y_value_per_vertex[vertex_index]
 			direction_2 = array([[delta_x_2], [delta_y_2]], dtype = float)
 			# Normalize the direction vectors
 			direction_1 /= norm(direction_1)
@@ -246,10 +246,10 @@ class Polygon:
 		# Compute the needed rotation transformation
 		rotated_x_value_per_vertex = []
 		rotated_y_value_per_vertex = []
-		for index in range(self._n_vertices):
+		for vertex_index in range(self._n_vertices):
 			# Get the needed x-value and y-value
-			x_value = shifted_x_value_per_vertex[index]
-			y_value = shifted_y_value_per_vertex[index]
+			x_value = shifted_x_value_per_vertex[vertex_index]
+			y_value = shifted_y_value_per_vertex[vertex_index]
 
 			# Apply the needed rotation and store
 			rotated_x_value_per_vertex.append(cos(angle * pi / 180) * x_value - sin(angle * pi / 180) * y_value)
@@ -328,19 +328,19 @@ class Polygon:
 		x_interior_per_vertex = []
 		y_interior_per_vertex = []
 		# Compute the needed values
-		for index in range(self._n_vertices):
+		for vertex_index in range(self._n_vertices):
 			# Compute the shifted base points for the needed lines
-			shifted_x_1 = self._x_value_per_vertex[index - 1] - self._bevel_size * self._normal_vector_per_edge[index - 1][0, 0]
-			shifted_y_1 = self._y_value_per_vertex[index - 1] - self._bevel_size * self._normal_vector_per_edge[index - 1][1, 0]
-			shifted_x_2 = self._x_value_per_vertex[index] - self._bevel_size * self._normal_vector_per_edge[index][0, 0]
-			shifted_y_2 = self._y_value_per_vertex[index] - self._bevel_size * self._normal_vector_per_edge[index][1, 0]
+			shifted_x_1 = self._x_value_per_vertex[vertex_index - 1] - self._bevel_size * self._normal_vector_per_edge[vertex_index - 1][0, 0]
+			shifted_y_1 = self._y_value_per_vertex[vertex_index - 1] - self._bevel_size * self._normal_vector_per_edge[vertex_index - 1][1, 0]
+			shifted_x_2 = self._x_value_per_vertex[vertex_index] - self._bevel_size * self._normal_vector_per_edge[vertex_index][0, 0]
+			shifted_y_2 = self._y_value_per_vertex[vertex_index] - self._bevel_size * self._normal_vector_per_edge[vertex_index][1, 0]
 			# Get the vector defining the 1st edge
-			delta_x_1 = self._x_value_per_vertex[index] - self._x_value_per_vertex[index - 1]
-			delta_y_1 = self._y_value_per_vertex[index] - self._y_value_per_vertex[index - 1]
+			delta_x_1 = self._x_value_per_vertex[vertex_index] - self._x_value_per_vertex[vertex_index - 1]
+			delta_y_1 = self._y_value_per_vertex[vertex_index] - self._y_value_per_vertex[vertex_index - 1]
 			direction_1 = array([[delta_x_1], [delta_y_1]], dtype = float)
 			# Get the vector defining the 2nd edge
-			delta_x_2 = self._x_value_per_vertex[(index + 1) % self._n_vertices] - self._x_value_per_vertex[index]
-			delta_y_2 = self._y_value_per_vertex[(index + 1) % self._n_vertices] - self._y_value_per_vertex[index]
+			delta_x_2 = self._x_value_per_vertex[(vertex_index + 1) % self._n_vertices] - self._x_value_per_vertex[vertex_index]
+			delta_y_2 = self._y_value_per_vertex[(vertex_index + 1) % self._n_vertices] - self._y_value_per_vertex[vertex_index]
 			direction_2 = array([[delta_x_2], [delta_y_2]], dtype = float)
 			# Create the matrix and vector needed to solve the system
 			needed_matrix = array([[direction_1[0, 0], -direction_2[0, 0]], [direction_1[1, 0], -direction_2[1, 0]]], dtype = float)
@@ -368,22 +368,22 @@ class Polygon:
 		# Compute the z-component for normal vectors associated with edges
 		z_component = tan((90 - self._bevel_attitude) * pi / 180)
 		# Add the information for each face
-		for index in range(self._n_vertices + 1):
+		for face_index in range(self._n_vertices + 1):
 			# Get the needed value for this face
-			if index < self._n_vertices:
+			if face_index < self._n_vertices:
 				# Use the information of this edge for the vertices
 				current_n_vertices = 4
-				current_x_values = [self._x_value_per_vertex[index],
-									self._x_value_per_vertex[(index + 1) % self._n_vertices],
-									x_interior_per_vertex[(index + 1) % self._n_vertices],
-									x_interior_per_vertex[index]]
-				current_y_values = [self._y_value_per_vertex[index],
-									self._y_value_per_vertex[(index + 1) % self._n_vertices],
-									y_interior_per_vertex[(index + 1) % self._n_vertices],
-									y_interior_per_vertex[index]]
+				current_x_values = [self._x_value_per_vertex[face_index],
+									self._x_value_per_vertex[(face_index + 1) % self._n_vertices],
+									x_interior_per_vertex[(face_index + 1) % self._n_vertices],
+									x_interior_per_vertex[face_index]]
+				current_y_values = [self._y_value_per_vertex[face_index],
+									self._y_value_per_vertex[(face_index + 1) % self._n_vertices],
+									y_interior_per_vertex[(face_index + 1) % self._n_vertices],
+									y_interior_per_vertex[face_index]]
 				# Use the edge's normal vector and the bevel attitude to get the face's normal vector
-				x_component = self._normal_vector_per_edge[index][0, 0]
-				y_component = self._normal_vector_per_edge[index][1, 0]
+				x_component = self._normal_vector_per_edge[face_index][0, 0]
+				y_component = self._normal_vector_per_edge[face_index][1, 0]
 				current_normal_vector = array([[x_component], [y_component], [z_component]], dtype = float)
 			else:
 				# Use the interior vertices of this face
@@ -418,12 +418,12 @@ class Polygon:
 
 		# Create the patch objects without any color and save them for future use
 		self._patch_per_face = []
-		for index in range(self._n_vertices + 1):
+		for face_index in range(self._n_vertices + 1):
 			# Create an array containing the vertices of this face
-			vertex_array = zeros((self._n_edges_per_face[index], 2), dtype = float)
-			for row_index in range(self._n_edges_per_face[index]):
-				vertex_array[row_index, 0] = self._x_values_per_face[index][row_index]
-				vertex_array[row_index, 1] = self._y_values_per_face[index][row_index]
+			vertex_array = zeros((self._n_edges_per_face[face_index], 2), dtype = float)
+			for row_index in range(self._n_edges_per_face[face_index]):
+				vertex_array[row_index, 0] = self._x_values_per_face[face_index][row_index]
+				vertex_array[row_index, 1] = self._y_values_per_face[face_index][row_index]
 
 			# Create the needed patch and add it to the plot
 			self._patch_per_face.append(self._render_axis.add_patch(patches.Polygon(vertex_array, closed = True, edgecolor = None, linewidth = 0)))
@@ -463,9 +463,9 @@ class Polygon:
 		# Initialize the needed list
 		self._raw_brightness_per_face = []
 		# Compute the needed values
-		for index in range(self._n_vertices + 1):
+		for face_index in range(self._n_vertices + 1):
 			# Compute the cosine of the angle between the sun direction and the normal vector of the face, store this as the brightness
-			normal_vector = self._normal_vector_per_face[index]
+			normal_vector = self._normal_vector_per_face[face_index]
 			cos_angle = sun_vector[0, 0] * normal_vector[0, 0] + sun_vector[1, 0] * normal_vector[1, 0] + sun_vector[2, 0] * normal_vector[2, 0]
 			self._raw_brightness_per_face.append(cos_angle)
 
@@ -493,8 +493,9 @@ class Polygon:
 		# Initialize the dictionary of results with relevant face information
 		render_info = {
 			"n_faces": self._n_vertices + 1,
-			"x_values_per_face": self._x_values_per_face,
-			"y_values_per_face": self._y_values_per_face,
+			"n_edges_per_face": self._n_edges_per_face,
+			"x_values_per_face": [[x_value + x_shift for x_value in x_values] for x_values in self._x_values_per_face],
+			"y_values_per_face": [[y_value + y_shift for y_value in y_values] for y_values in self._y_values_per_face],
 			"rgb_values_per_face": []
 		}
 
@@ -502,12 +503,12 @@ class Polygon:
 		# Get the tint shade values as a numpy array
 		tint_shade_array = array(tint_shade.asTupleFloat(), dtype = float)
 		# Compute the RGB values as a numpy array for each face
-		for index in range(self._n_vertices + 1):
+		for face_index in range(self._n_vertices + 1):
 			# Compute the adjusted brightness for this face
 			# Compute the color needed for this face
 			if self._preprocess_sun_flag == True:
 				# Linearly interpolate between the minimum and maximum brightness values according to the raw brightness
-				adjusted_brightness = min_brightness + (max_brightness - min_brightness) * self._raw_brightness_per_face[index]
+				adjusted_brightness = min_brightness + (max_brightness - min_brightness) * self._raw_brightness_per_face[face_index]
 			else:
 				# Raw brightness not computed because sun information not preprocessed, so just use the maximum brightness
 				adjusted_brightness = max_brightness
@@ -531,8 +532,8 @@ class Polygon:
 		rgb_values_per_face = self.computeRenderInfo(min_brightness = min_brightness, max_brightness = max_brightness, tint_shade = tint_shade, x_shift = 0, y_shift = 0)["rgb_values_per_face"]
 
 		# Draw each of the patches in the needed lighting
-		for index in range(self._n_vertices + 1):
-			self._patch_per_face[index].set_facecolor(rgb_values_per_face[index])
+		for face_index in range(self._n_vertices + 1):
+			self._patch_per_face[face_index].set_facecolor(rgb_values_per_face[face_index])
 
 		# Redraw the canvas now that all faces have been updated
 		self._render_figure.canvas.draw_idle()
@@ -569,6 +570,11 @@ class Polygon:
 
 		# Add in the externally facing unit normal for each edge
 		polygon_info["normal_vector_per_edge"] = self._normal_vector_per_edge
+
+		# Add in the vertex information related to faces
+		polygon_info["n_edges_per_face"] = self._n_edges_per_face
+		polygon_info["x_values_per_face"] = self._x_values_per_face
+		polygon_info["y_values_per_face"] = self._y_values_per_face
 
 		# Add in the needed bevel information
 		polygon_info["preprocess_bevel_flag"] = self._preprocess_bevel_flag

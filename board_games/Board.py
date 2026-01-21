@@ -16,7 +16,10 @@ from Polygon import Polygon
 from type_helper import isListWithNumericEntries, isNumeric
 
 # External modules
+from io import BytesIO
+import matplotlib.patches as patches
 import matplotlib.pyplot as plt
+from numpy import zeros
 from PIL import Image
 from PrivateAttributesDecorator import private_attributes_dec
 from typing import Any
@@ -96,15 +99,15 @@ class Board:
 		self._x_lower = float("inf")
 		self._x_upper = -float("inf")
 		self._y_lower = float("inf")
-		self._y_upper = float("inf")
+		self._y_upper = -float("inf")
 
 		# Loop over the polygons and extract the needed information
-		for polygon in self._all_deepcopy_polygons:
-			polygon_info = polygon.getInfo()
-			self._x_lower = min(self._x_lower, polygon_info["x_lower"])
-			self._x_upper = max(self._x_upper, polygon_info["x_upper"])
-			self._y_lower = min(self._y_lower, polygon_info["y_lower"])
-			self._y_upper = max(self._y_upper, polygon_info["y_upper"])
+		for polygon_index in range(self._n_polygons):
+			polygon_info = self._all_deepcopy_polygons[polygon_index].getInfo()
+			self._x_lower = min(self._x_lower, polygon_info["x_lower"] + self._x_shift_per_polygon[polygon_index])
+			self._x_upper = max(self._x_upper, polygon_info["x_upper"] + self._x_shift_per_polygon[polygon_index])
+			self._y_lower = min(self._y_lower, polygon_info["y_lower"] + self._y_shift_per_polygon[polygon_index])
+			self._y_upper = max(self._y_upper, polygon_info["y_upper"] + self._y_shift_per_polygon[polygon_index])
 
 	### Define external functions for preprocessing bevel and sun information for all polygons ###
 	def preprocessBevelInfo(self, bevel_attitude:Any, bevel_size:Any, polygon_index:int = None):
@@ -148,7 +151,7 @@ class Board:
 		self._checkFlags()
 
 	### Define an external function for rendering the board as a single image ###
-	def render(self, min_brightness:Any = 0, max_brightness:Any = 1, tint_shade:RGB = RGB((255, 255, 255))) -> Image.Image:
+	def render(self, dpi:int, min_brightness:Any = 0, max_brightness:Any = 1, tint_shade:RGB = RGB((255, 255, 255))) -> Image.Image:
 		# Return a PIL image render of the board with the preprocessed settings
 		# Only proceed if all bevel and sun information has been preprocessed
 		assert self._all_bevel_info_flag == True, "Board::render: Only able to render board image once all bevel information has been preprocessed"
@@ -165,18 +168,81 @@ class Board:
 		self._render_axis.set_ylim(bottom = self._y_lower, top = self._y_upper)
 		self._render_axis.axis("off")
 
-		# Perform additional input verification and compute the RGB colors using computeRenderInfo with the needed shift
+		# Loop over the polygons and render each associated patch
+		for polygon_index in range(self._n_polygons):
+			# Perform additional input verification and compute the render information using computeRenderInfo with the needed shift
+			render_info = self._all_deepcopy_polygons[polygon_index].computeRenderInfo(min_brightness = min_brightness,
+																					   max_brightness = max_brightness,
+																					   tint_shade = tint_shade,
+																					   x_shift = self._x_shift_per_polygon[polygon_index],
+																					   y_shift = self._y_shift_per_polygon[polygon_index])
+
+			# Extract all needed values
+			n_faces = render_info["n_faces"]
+			n_edges_per_face = render_info["n_edges_per_face"]
+			x_values_per_face = render_info["x_values_per_face"]
+			y_values_per_face = render_info["y_values_per_face"]
+			rgb_values_per_face = render_info["rgb_values_per_face"]
+
+			# Loop over the faces of this polygon and create the needed patches
+			for face_index in range(n_faces):
+				# Create an array containing the vertices of this face
+				vertex_array = zeros((n_edges_per_face[face_index], 2), dtype = float)
+				for row_index in range(n_edges_per_face[face_index]):
+					vertex_array[row_index, 0] = x_values_per_face[face_index][row_index]
+					vertex_array[row_index, 1] = y_values_per_face[face_index][row_index]
+
+				# Create the needed patch in the given color and add it to the plot
+				self._render_axis.add_patch(patches.Polygon(vertex_array, closed = True, edgecolor = None, facecolor = rgb_values_per_face[face_index], linewidth = 0))
+
+		# Redraw the canvas now that all faces have been updated
+		self._render_figure.canvas.draw_idle()
+
+		# Create a buffer to which the image will be saved
+		image_buffer = BytesIO()
+
+		# Save the figure to the buffer
+		self._render_figure.savefig(image_buffer, dpi = dpi, format = "png", transparent = True)
+
+		# Rewind to the beginning of the buffer and load the render as a PIL image
+		image_buffer.seek(0)
+		board_render = Image.open(image_buffer)
+
+		# Return the result
+		return board_render
+
+
 
 from Polygon import SQUARE_1x1
 
-n_polygons = 4
-all_polygons = [SQUARE_1x1, SQUARE_1x1, SQUARE_1x1, SQUARE_1x1]
+n_rows = 8
+n_cols = 8
+
+n_polygons = n_rows * n_cols
+all_polygons = [SQUARE_1x1 for _ in range(n_polygons)]
+
+x_shift_per_polygon = []
+y_shift_per_polygon = []
+x_shift = 0
+y_shift = 0
+while True:
+	x_shift_per_polygon.append(x_shift)
+	y_shift_per_polygon.append(y_shift)
+
+	x_shift += 1
+	if x_shift == n_cols:
+		x_shift = 0
+		y_shift += 1
+		if y_shift == n_rows:
+			break
 
 bevel_attitude = 25
 bevel_size = 0.1
 all_polygons[0].preprocessBevelInfo(bevel_attitude = bevel_attitude, bevel_size = bevel_size)
 print(all_polygons[1].getInfo())
 
-x_shift_per_polygon = [0, 1, 0, 1]
-y_shift_per_polygon = [0, 0, 1, 1]
 board = Board(n_polygons = n_polygons, all_polygons = all_polygons, x_shift_per_polygon = x_shift_per_polygon, y_shift_per_polygon = y_shift_per_polygon)
+
+board.preprocessBevelInfo(bevel_attitude = 25, bevel_size = 0.1)
+board.preprocessAllSunInfo(sun_angle = 120, sun_attitude = 35)
+board.render(dpi = 600, tint_shade = RGB((255, 0, 255))).show()
