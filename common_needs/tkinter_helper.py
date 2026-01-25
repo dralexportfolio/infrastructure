@@ -135,72 +135,78 @@ def askSaveFilename(allowed_extensions:list = None, title:str = "Please Select A
 		return Path(filename_str)
 
 
-#########################################################################################
-### Define functions which allow for creation and modification of frames and canvases ###
-#########################################################################################
-def createFrame(width_parameter:Any, height_parameter:Any, title:str, resizable_flag:bool = False) -> Tk:
+#####################################################################
+### Define functions which allow for creating frames and canvases ###
+#####################################################################
+def createWindow(width_parameter:Any, height_parameter:Any, title:str, resizable_flag:bool = False) -> Tk:
 	# Create a tkinter frame object with the given parameters
 	# Verify the inputs
-	assert isNumeric(width_parameter, include_numpy_flag = False) == True, "createFrame: Provided value for 'width_parameter' must be a float or int object"
-	assert isNumeric(height_parameter, include_numpy_flag = False) == True, "createFrame: Provided value for 'height_parameter' must be a float or int object"
-	assert type(title) == str, "createFrame: Provided value for 'title' must be a str object"
-	assert type(resizable_flag) == bool, "createFrame: Provided value for 'resizable_flag' must be a bool object"
+	assert isNumeric(width_parameter, include_numpy_flag = False) == True, "createWindow: Provided value for 'width_parameter' must be a float or int object"
+	assert isNumeric(height_parameter, include_numpy_flag = False) == True, "createWindow: Provided value for 'height_parameter' must be a float or int object"
+	assert type(title) == str, "createWindow: Provided value for 'title' must be a str object"
+	assert type(resizable_flag) == bool, "createWindow: Provided value for 'resizable_flag' must be a bool object"
 
-	# Create the frame object to return
-	frame_to_return = Tk()
+	# Create the window object to return
+	window_to_return = Tk()
 
-	# Fetch the width and height of the screen on which the frame appears
-	screen_width = frame_to_return.winfo_screenwidth()
-	screen_height = frame_to_return.winfo_screenheight()
+	# Fetch the width and height of the screen on which the window appears
+	screen_width = window_to_return.winfo_screenwidth()
+	screen_height = window_to_return.winfo_screenheight()
 
-	# Compute the frame dimensions based on whether the parameters are floats or ints
+	# Compute the window dimensions based on whether the parameters are floats or ints
 	# Handle the width information
 	if type(width_parameter) == float:
-		# Compute frame width as a portion of the screen width
-		frame_width = int(width_parameter * screen_width)
+		# Compute window width as a portion of the screen width
+		window_width = int(width_parameter * screen_width)
 	else:
-		# Set the frame width as the raw provided value
-		frame_width = width_parameter
+		# Set the window width as the raw provided value
+		window_width = width_parameter
 	# Handle the height information
 	if type(height_parameter) == float:
-		# Compute frame height as a portion of the screen height
-		frame_height = int(height_parameter * screen_height)
+		# Compute window height as a portion of the screen height
+		window_height = int(height_parameter * screen_height)
 	else:
-		# Set the frame height as the raw provided value
-		frame_height = height_parameter
+		# Set the window height as the raw provided value
+		window_height = height_parameter
 
-	# Verify that the computed frame dimensions are valid
-	assert 0 < frame_width and frame_width <= screen_width, "createFrame: Provided value for 'width_parameter' must result in a positive frame width which is <= the associated screen width"
-	assert 0 < frame_height and frame_height <= screen_height, "createFrame: Provided value for 'height_parameter' must result in a positive frame height which is <= the associated screen height"
+	# Verify that the computed window dimensions are valid
+	assert 0 < window_width and window_width <= screen_width, "createWindow: Provided value for 'width_parameter' must result in a positive window width which is <= the associated screen width"
+	assert 0 < window_height and window_height <= screen_height, "createWindow: Provided value for 'height_parameter' must result in a positive window height which is <= the associated screen height"
 
-	# Set the dimensions and title of the frame
-	frame_to_return.geometry(str(frame_width) + "x" + str(frame_height))
-	frame_to_return.title(title)
+	# Set the dimensions and title of the window
+	window_to_return.geometry(str(window_width) + "x" + str(window_height))
+	window_to_return.title(title)
 
-	# Set the resizability parameter of the frame
-	frame_to_return.resizable(resizable_flag, resizable_flag)
+	# Set the resizability parameter of the window
+	window_to_return.resizable(resizable_flag, resizable_flag)
+
+	# Update the window to make sure the updates apply
+	window_to_return.update_idletasks()
 
 	# Return the results
-	return frame_to_return
+	return window_to_return
 
-def createCanvas(frame_for_canvas:Tk, canvas_color:RGB) -> Canvas:
-	# Create a canvas on the associated frame
+def createCanvas(used_window:Tk, fill_color:RGB) -> Canvas:
+	# Create a canvas on the associated window
 	# Verify the inputs
-	assert type(frame_for_canvas) == Tk, "createCanvas: Provided value for 'frame_for_canvas' must be a Tk object"
-	assert type(canvas_color) == RGB, "createCanvas: Provided value for 'canvas_color' must be an RGB object"
+	assert type(used_window) == Tk, "createCanvas: Provided value for 'used_window' must be a Tk object"
+	assert type(fill_color) == RGB, "createCanvas: Provided value for 'fill_color' must be an RGB object"
 
-	# Fetch the width and height of the frame
-	frame_width = frame_for_canvas.winfo_width()
-	frame_height = frame_for_canvas.winfo_height()
+	# Fetch the width and height of the window
+	window_width = used_window.winfo_width()
+	window_height = used_window.winfo_height()
 
 	# Create the canvas object to return
-	canvas_to_return = Canvas(frame_for_canvas, width = frame_width, height = frame_height)
+	canvas_to_return = Canvas(used_window, width = window_width, height = window_height)
 
 	# Set the color of the canvas
-	canvas_to_return.configure(bg = canvas_color.asStringHex())
+	canvas_to_return.configure(bg = fill_color.asStringHex())
 
 	# Pack the canvas object
 	canvas_to_return.pack()
+
+	# Update the associated window to make sure the updates apply
+	canvas_to_return.winfo_toplevel().update_idletasks()
 
 	# Return the results
 	return canvas_to_return
@@ -209,3 +215,57 @@ def createCanvas(frame_for_canvas:Tk, canvas_color:RGB) -> Canvas:
 ####################################################
 ### Define functions for creating canvas objects ###
 ####################################################
+def createRectangle(used_canvas:Canvas, tl_x_parameter:Any, tl_y_parameter:Any, br_x_parameter:Any, br_y_parameter:Any, fill_color:RGB):
+	# Create a rectangle object with the given parameters on the given canvas
+	# Verify the inputs
+	assert type(used_canvas) == Canvas, "createRectangle: Provided value for 'used_canvas' must be a Canvas object"
+	assert isNumeric(tl_x_parameter, include_numpy_flag = False) == True, "createRectangle: Provided value for 'tl_x_parameter' must be a float or int object"
+	assert isNumeric(tl_y_parameter, include_numpy_flag = False) == True, "createRectangle: Provided value for 'tl_y_parameter' must be a float or int object"
+	assert isNumeric(br_x_parameter, include_numpy_flag = False) == True, "createRectangle: Provided value for 'br_x_parameter' must be a float or int object"
+	assert isNumeric(br_y_parameter, include_numpy_flag = False) == True, "createRectangle: Provided value for 'br_y_parameter' must be a float or int object"
+	assert type(fill_color) == RGB, "createRectangle: Provided value for 'fill_color' must be an RGB object"
+
+	# Fetch the width and height of the canvas
+	canvas_width = used_canvas.winfo_width()
+	canvas_height = used_canvas.winfo_height()
+
+	# Compute the rectangle vertex locations based on whether the parameters are floats or ints
+	# Handle the top-left x-value
+	if type(tl_x_parameter) == float:
+		# Compute x-value as a portion of the canvas width
+		tl_x_value = int(tl_x_parameter * canvas_width)
+	else:
+		# Set the x-value as the raw provided value
+		tl_x_value = tl_x_parameter
+	# Handle the top-left y-value
+	if type(tl_y_parameter) == float:
+		# Compute y-value as a portion of the canvas height
+		tl_y_value = int(tl_y_parameter * canvas_height)
+	else:
+		# Set the y-value as the raw provided value
+		tl_y_value = tl_y_parameter
+	# Handle the bottom-right x-value
+	if type(br_x_parameter) == float:
+		# Compute x-value as a portion of the canvas width
+		br_x_value = int(br_x_parameter * canvas_width)
+	else:
+		# Set the x-value as the raw provided value
+		br_x_value = br_x_parameter
+	# Handle the bottom-right y-value
+	if type(br_y_parameter) == float:
+		# Compute y-value as a portion of the canvas height
+		br_y_value = int(br_y_parameter * canvas_height)
+	else:
+		# Set the y-value as the raw provided value
+		br_y_value = br_y_parameter
+
+	# Verify that the computed rectangle vertex locations are valid
+	assert 0 <= tl_x_value and tl_x_value <= canvas_width, "createFrame: Provided value for 'tl_x_parameter' must result in a non-negative top-left x-value which is <= the associated canvas width"
+	assert 0 <= tl_y_value and tl_y_value <= canvas_height, "createFrame: Provided value for 'tl_y_parameter' must result in a non-negative top-left y-value which is <= the associated canvas height"
+	assert 0 <= br_x_value and br_x_value <= canvas_width, "createFrame: Provided value for 'br_x_parameter' must result in a non-negative top-left x-value which is <= the associated canvas width"
+	assert 0 <= br_y_value and br_y_value <= canvas_height, "createFrame: Provided value for 'br_y_parameter' must result in a non-negative top-left y-value which is <= the associated canvas height"
+	assert tl_x_value < br_x_value, "createFrame: Provided values for 'tl_x_parameter' and 'br_x_parameter' must result in a top-left x-value which is < the bottom-right x-value"
+	assert tl_y_value < br_y_value, "createFrame: Provided values for 'tl_y_parameter' and 'br_y_parameter' must result in a top-left y-value which is < the bottom-right y-value"
+
+	# Draw the needed rectangle object
+	used_canvas.create_rectangle(tl_x_value, tl_y_value, br_x_value, br_y_value, fill = fill_color.asStringHex())
