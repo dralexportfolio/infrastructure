@@ -144,7 +144,7 @@ def createFrame(width_parameter:Any, height_parameter:Any, title:str, resizable_
 	assert isNumeric(width_parameter, include_numpy_flag = False) == True, "createFrame: Provided value for 'width_parameter' must be a float or int object"
 	assert isNumeric(height_parameter, include_numpy_flag = False) == True, "createFrame: Provided value for 'height_parameter' must be a float or int object"
 	assert type(title) == str, "createFrame: Provided value for 'title' must be a str object"
-	assert type(resizable_flag) == str, "createFrame: Provided value for 'resizable_flag' must be a bool object"
+	assert type(resizable_flag) == bool, "createFrame: Provided value for 'resizable_flag' must be a bool object"
 
 	# Create the frame object to return
 	frame_to_return = Tk()

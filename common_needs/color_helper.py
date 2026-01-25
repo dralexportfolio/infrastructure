@@ -2,7 +2,6 @@
 ### Import needed general dependencies ###
 ##########################################
 # Internal modules
-from spline_helper import LinearSpline
 from type_helper import isListWithNumericEntries, isNumeric
 
 # External modules
@@ -197,31 +196,35 @@ def customSpectrum(parameter:Any, rgb_spectrum:list = DEFAULT_SPECTRUM) -> RGB:
 	# Get the number of colors defining the spectrum
 	n_colors = len(rgb_spectrum)
 
-	# Generate the x-values for the linear splines
+	# Handle the various cases for the non-normalized colors
 	if n_colors == 1:
-		x_values = [0.5]
+		# Only a single color so do use that
+		rgb_tuple = rgb_spectrum[0].asTupleFloat()
+		non_normalized_red = rgb_tuple[0]
+		non_normalized_green = rgb_tuple[1]
+		non_normalized_blue = rgb_tuple[2]
 	else:
-		x_values = [index / (n_colors - 1) for index in range(n_colors)]
+		# Compute the cutoff tuples for the different color ranges
+		cutoff_ranges = [(index / (n_colors - 1), (index + 1) / (n_colors - 1)) for index in range(n_colors - 1)]
 
-	# Extract the y-values for the linear splines
-	y_values_red = []
-	y_values_green = []
-	y_values_blue = []
-	for index in range(n_colors):
-		current_tuple = rgb_spectrum[index].asTupleFloat()
-		y_values_red.append(current_tuple[0])
-		y_values_green.append(current_tuple[1])
-		y_values_blue.append(current_tuple[2])
+		# Compute the non-normalized red, green and blue values using interpolation
+		for index in range(n_colors - 1):
+			# Compute the mixing associated with this range
+			mixing_weight = (cutoff_ranges[index][1] - parameter) / (cutoff_ranges[index][1] - cutoff_ranges[index][0])
 
-	# Create the needed linear splines
-	spline_red = LinearSpline(x_values = x_values, y_values = y_values_red)
-	spline_green = LinearSpline(x_values = x_values, y_values = y_values_green)
-	spline_blue = LinearSpline(x_values = x_values, y_values = y_values_blue)
+			# Proceed if the mixing weight is valid
+			if 0 <= mixing_weight and mixing_weight <= 1:
+				# Extract the left and right RGB tuples
+				left_rgb_tuple = rgb_spectrum[index].asTupleFloat()
+				right_rgb_tuple = rgb_spectrum[index + 1].asTupleFloat()
 
-	# Get the non-normalized values using the linear splines
-	non_normalized_red = spline_red.evaluate(x_value = parameter)
-	non_normalized_green = spline_green.evaluate(x_value = parameter)
-	non_normalized_blue = spline_blue.evaluate(x_value = parameter)
+				# Interpolate to get the non-normalized values
+				non_normalized_red = mixing_weight * left_rgb_tuple[0] + (1 - mixing_weight) * right_rgb_tuple[0]
+				non_normalized_green = mixing_weight * left_rgb_tuple[1] + (1 - mixing_weight) * right_rgb_tuple[1]
+				non_normalized_blue = mixing_weight * left_rgb_tuple[2] + (1 - mixing_weight) * right_rgb_tuple[2]
+
+				# End the loop
+				break
 
 	# Compute the normalizing value
 	rgb_normalizer = sqrt(non_normalized_red**2 + non_normalized_green**2 + non_normalized_blue**2)
