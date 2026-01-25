@@ -138,7 +138,7 @@ def askSaveFilename(allowed_extensions:list = None, title:str = "Please Select A
 #########################################################################################
 ### Define functions which allow for creation and modification of frames and canvases ###
 #########################################################################################
-def createFrame(width_parameter:Any, height_parameter:Any, title:str, resizable_flag:bool) -> Tk:
+def createFrame(width_parameter:Any, height_parameter:Any, title:str, resizable_flag:bool = False) -> Tk:
 	# Create a tkinter frame object with the given parameters
 	# Verify the inputs
 	assert isNumeric(width_parameter, include_numpy_flag = False) == True, "createFrame: Provided value for 'width_parameter' must be a float or int object"
@@ -204,7 +204,7 @@ def createCanvas(frame_for_canvas:Tk, canvas_color:RGB) -> Canvas:
 
 	# Return the results
 	return canvas_to_return
-	
+
 
 ####################################################
 ### Define functions for creating canvas objects ###
