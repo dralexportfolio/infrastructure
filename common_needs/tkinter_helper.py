@@ -2,6 +2,7 @@
 ### Import needed general dependencies ###
 ##########################################
 # Internal modules
+from color_helper import RGB
 from type_helper import isListWithStringEntries, isNumeric
 
 # External modules
@@ -182,9 +183,28 @@ def createFrame(width_parameter:Any, height_parameter:Any, title:str, resizable_
 	# Return the results
 	return frame_to_return
 
-def createCanvas(frame:Tk) -> Canvas:
-	pass
+def createCanvas(frame_for_canvas:Tk, canvas_color:RGB) -> Canvas:
+	# Create a canvas on the associated frame
+	# Verify the inputs
+	assert type(frame_for_canvas) == Tk, "createCanvas: Provided value for 'frame_for_canvas' must be a Tk object"
+	assert type(canvas_color) == RGB, "createCanvas: Provided value for 'canvas_color' must be an RGB object"
 
+	# Fetch the width and height of the frame
+	frame_width = frame_for_canvas.winfo_width()
+	frame_height = frame_for_canvas.winfo_height()
+
+	# Create the canvas object to return
+	canvas_to_return = Canvas(frame_for_canvas, width = frame_width, height = frame_height)
+
+	# Set the color of the canvas
+	canvas_to_return.configure(bg = canvas_color.asStringHex())
+
+	# Pack the canvas object
+	canvas_to_return.pack()
+
+	# Return the results
+	return canvas_to_return
+	
 
 ####################################################
 ### Define functions for creating canvas objects ###
