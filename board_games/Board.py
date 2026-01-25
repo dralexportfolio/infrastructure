@@ -293,7 +293,9 @@ class Board:
 					vertex_array[row_index, 1] = y_values_per_face[face_index][row_index]
 
 				# Create the needed patch in the given color and add it to the plot
-				self._render_axis.add_patch(patches.Polygon(vertex_array, closed = True, edgecolor = None, facecolor = rgb_values_per_face[face_index], linewidth = 0))
+				self._render_axis.add_patch(patches.Polygon(vertex_array, closed = True, edgecolor = None,
+															facecolor = rgb_values_per_face[face_index],
+															linewidth = 0, zorder = face_index))
 
 		# Redraw the canvas now that all faces have been updated
 		self._render_figure.canvas.draw_idle()
