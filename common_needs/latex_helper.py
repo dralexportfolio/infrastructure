@@ -42,4 +42,4 @@ png_filename_path = askSaveFilename(allowed_extensions = ["png"])
 assert png_filename_path is not None, "Unable to proceed with saving rendered equation because no filename was selected"
 
 # Save the figure to the needed file using a transparent background
-plt.savefig(png_filename_path, transparent = True)
+plt.savefig(png_filename_path, dpi = 300, transparent = True)
