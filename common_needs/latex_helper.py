@@ -27,7 +27,7 @@ fig = plt.figure()
 plt.axis("off")
 
 # Display the text in the center of the figure as a raw string using LaTeX to make sure backslashes are treated correctly
-rendered_text = plt.text(0.5, 0.5, r"${%s}$" % latex_string, ha = "center", va = "center", size = 20, usetex = True)
+rendered_text = plt.text(0.5, 0.5, r"${%s}$" % latex_string, ha = "center", va = "center", size = 20)
 
 # Automatically adjust the size of the figure to match the displayed text
 # Build the image without showing it
