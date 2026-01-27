@@ -11,8 +11,9 @@ import matplotlib.pyplot as plt
 #########################################################
 ### Set any needed parameters for the equation render ###
 #########################################################
-# Set an optional fixed width for the figure
-fig_width = 14
+# Set an optional fixed width and height for the figure
+fixed_width = 12
+fixed_height = None
 
 # Define the render DPI
 dpi = 300
@@ -44,8 +45,15 @@ rendered_text = plt.text(0.5, 0.5, r"${%s}$" % latex_string, ha = "center", va =
 fig.canvas.draw()
 # Get the bounding box of the rendered text
 bbox = rendered_text.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
-# Set the figure size using the bounding box (note: overwrite width with fixed value if needed)
-fig.set_size_inches(fig_width if fig_width is not None else bbox.width + 1, bbox.height + 0.5)
+# Compute the needed width and height based on the bounding box and provided fixed values
+used_width = bbox.width + 1
+used_height = bbox.height + 0.5
+if fixed_width is not None:
+	used_width = max(used_width, fixed_width)
+if fixed_height is not None:
+	used_height = max(used_height, fixed_height)
+# Set the figure size using the computed values
+fig.set_size_inches(used_width, used_height)
 
 # Get the filename to save to and end early if not selected
 png_filename_path = askSaveFilename(allowed_extensions = ["png"])
