@@ -142,7 +142,7 @@ class Spline(ABC):
 				filename_path = askSaveFilename(allowed_extensions = ["html"])
 				
 			# End if not selected
-			assert filename_path is not None, "Spline::plot: Unable to proceed with saving plot because no filename was seleceted"
+			assert filename_path is not None, "Spline::plot: Unable to proceed with saving plot because no filename was selected"
 		
 		# Generate the needed plot information and extract the values
 		plot_results = self.getPlotInfo(x_lower = x_lower, x_upper = x_upper)

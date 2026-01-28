@@ -426,7 +426,7 @@ class Polygon:
 				vertex_array[row_index, 1] = self._y_values_per_face[face_index][row_index]
 
 			# Create the needed patch and add it to the plot
-			self._patch_per_face.append(self._render_axis.add_patch(patches.Polygon(vertex_array, closed = True, edgecolor = None, linewidth = 0)))
+			self._patch_per_face.append(self._render_axis.add_patch(patches.Polygon(vertex_array, closed = True, edgecolor = None, linewidth = 0, antialiased = False,)))
 
 		# Set the preprocess bevel flag to True
 		self._preprocess_bevel_flag = True
