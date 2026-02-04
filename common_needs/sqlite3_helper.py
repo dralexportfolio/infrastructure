@@ -115,9 +115,9 @@ def _checkRowCount(db_cursor:Cursor, table_name:str, min_count:int = None) -> in
 	return row_count
 
 
-#########################################################################################
-### Define function for adding and deleting tables in a db file at the given location ###
-#########################################################################################
+##########################################################################################
+### Define functions for adding and deleting tables in a db file at the given location ###
+##########################################################################################
 def addTable(db_path:Union[PosixPath, WindowsPath], table_name:str, column_names:list, column_types:list, replace_flag:bool = True):
 	# Add a table to the given db file (or replaces an existing table with an empty one if needed)
 	# Verify the inputs which use common functions
