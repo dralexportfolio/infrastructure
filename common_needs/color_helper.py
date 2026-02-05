@@ -7,6 +7,8 @@ from type_helper import isListWithNumericEntries, isNumeric
 # External modules
 from copy import deepcopy
 from math import sqrt
+from matplotlib.colors import ListedColormap
+import matplotlib.pyplot as plt
 from plotly.express import colors
 from PrivateAttributesDecorator import private_attributes_dec
 from typing import Any, Tuple
@@ -40,8 +42,10 @@ class RGB:
 			green_value = input_value[1]
 			blue_value = input_value[2]
 		elif type(input_value) == str:
+			# Delete any spaces from the provided values
+			input_value = input_value.replace(" ", "")
 			# Verify the inputs
-			assert len(input_value) > 0, "RGB::__init__: If provided value for 'input_value' is a string then it must be non-empty"
+			assert len(input_value) > 0, "RGB::__init__: If provided value for 'input_value' is a string then it must be non-empty (once spaces are removed)"
 			# Handle the various cases
 			if input_value.startswith("rgb("):
 				# Make sure it has the correct ending
@@ -156,19 +160,30 @@ class RGB:
 		return copy_of_self
 
 
-##########################################################
-### Create helpers related to plotly colors and scales ###
-##########################################################
-# Get all plotly scale root names as a list
-ALL_PLOTLY_SCALE_ROOT_NAMES = colors.named_colorscales()
+#######################################################################
+### Create helpers related to matplotlib and plotly color sequences ###
+#######################################################################
+# Create a dictionary where keys are matplotlib colormap names and values are lists of RGB objects
+ALL_MATPLOTLIB_COLORMAPS = {}
+for colormap_name in plt.colormaps():
+	if type(getattr(plt.cm, colormap_name)) == ListedColormap:
+		ALL_MATPLOTLIB_COLORMAPS[colormap_name] = []
+		for color_tuple in getattr(plt.cm, colormap_name).colors:
+			red_value = float(color_tuple[0])
+			green_value = float(color_tuple[1])
+			blue_value = float(color_tuple[2])
+			ALL_MATPLOTLIB_COLORMAPS[colormap_name].append(RGB((red_value, green_value, blue_value)))
 
-# Get all plotly scales as a dictionary of RGB scale objects
-ALL_PLOTLY_SCALES = {}
-for scale_type in ["cyclical", "diverging", "qualitative", "sequential"]:
-	ALL_PLOTLY_SCALES[scale_type] = {}
-	for scale_name in dir(getattr(colors, scale_type)):
-		if scale_name.lower() in ALL_PLOTLY_SCALE_ROOT_NAMES or scale_name.lower() + "_r" in ALL_PLOTLY_SCALE_ROOT_NAMES:
-			ALL_PLOTLY_SCALES[scale_type][scale_name] = getattr(getattr(colors, scale_type), scale_name)
+# Create a dictionary (split into scale types) where keys are plotly color scale names and values are lists of RGB objects
+# Extract the list of root color scale names from plotly
+color_scale_root_names = colors.named_colorscales()
+# Construct the needed lists
+ALL_PLOTLY_COLOR_SCALES_BY_TYPE = {}
+for color_scale_type in ["cyclical", "diverging", "qualitative", "sequential"]:
+	ALL_PLOTLY_COLOR_SCALES_BY_TYPE[color_scale_type] = {}
+	for color_scale_name in dir(getattr(colors, color_scale_type)):
+		if color_scale_name.lower() in color_scale_root_names or color_scale_name.lower() + "_r" in color_scale_root_names:
+			ALL_PLOTLY_COLOR_SCALES_BY_TYPE[color_scale_type][color_scale_name] = [RGB(hex_color) for hex_color in getattr(getattr(colors, color_scale_type), color_scale_name)]
 
 
 #################################################################
