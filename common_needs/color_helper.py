@@ -199,7 +199,7 @@ DEFAULT_SPECTRUM.append(RGB((255, 127, 0)))		# orange
 DEFAULT_SPECTRUM.append(RGB((255, 0, 0)))		# red
 
 # Define the function for generating based on a parameter
-def customSpectrum(parameter:Any, rgb_spectrum:list = DEFAULT_SPECTRUM) -> RGB:
+def customSpectrum(parameter:Any, rgb_spectrum:list = DEFAULT_SPECTRUM, normalize_flag:bool = True) -> RGB:
 	# Compute an RGB object using a spectrum on the
 	assert isNumeric(parameter, include_numpy_flag = False) == True, "customSpectrum: Provided value for 'parameter' must be a float or int object"
 	assert 0 <= parameter and parameter <= 1, "customSpectrum: Provided value for 'parameter' must be >= 0 and <= 1"
@@ -207,6 +207,7 @@ def customSpectrum(parameter:Any, rgb_spectrum:list = DEFAULT_SPECTRUM) -> RGB:
 	assert len(rgb_spectrum) > 0, "customSpectrum: Provided value for 'rgb_spectrum' must be a non-empty list"
 	for rgb_value in rgb_spectrum:
 		assert type(rgb_value) == RGB, "customSpectrum: Provided value for 'rgb_spectrum' must be a list of RGB objects"
+	assert type(normalize_flag) == bool, "customSpectrum: Provided value for 'normalize_flag' must be a bool object"
 
 	# Get the number of colors defining the spectrum
 	n_colors = len(rgb_spectrum)
@@ -233,7 +234,7 @@ def customSpectrum(parameter:Any, rgb_spectrum:list = DEFAULT_SPECTRUM) -> RGB:
 				left_rgb_tuple = rgb_spectrum[index].asTupleFloat()
 				right_rgb_tuple = rgb_spectrum[index + 1].asTupleFloat()
 
-				# Interpolate to get the non-normalized values
+				# Interpolate to get the non-normalized values between 0 and 1
 				non_normalized_red = mixing_weight * left_rgb_tuple[0] + (1 - mixing_weight) * right_rgb_tuple[0]
 				non_normalized_green = mixing_weight * left_rgb_tuple[1] + (1 - mixing_weight) * right_rgb_tuple[1]
 				non_normalized_blue = mixing_weight * left_rgb_tuple[2] + (1 - mixing_weight) * right_rgb_tuple[2]
@@ -241,9 +242,15 @@ def customSpectrum(parameter:Any, rgb_spectrum:list = DEFAULT_SPECTRUM) -> RGB:
 				# End the loop
 				break
 
+	# Handle the various cases for obtaining the final RGB values
 	# Compute the normalizing value
-	rgb_normalizer = sqrt(non_normalized_red**2 + non_normalized_green**2 + non_normalized_blue**2)
-
+	if normalize_flag == True:
+		# Normalize so that the RGB values of the spectrum lie on a sphere, make sure the normalizer is non-zero
+		rgb_normalizer = sqrt(non_normalized_red**2 + non_normalized_green**2 + non_normalized_blue**2)
+		assert rgb_normalizer > 0, "customSpectrum: Unable to have value for 'normalize_flag' be True when red, green and blue values are all 0 at this value for 'parameter'"
+	else:
+		# Use the raw non-normalized values
+		rgb_normalizer = 1
 	# Compute the normalized RGB values to use
 	normalized_red = int(255 * non_normalized_red / rgb_normalizer)
 	normalized_green = int(255 * non_normalized_green / rgb_normalizer)
