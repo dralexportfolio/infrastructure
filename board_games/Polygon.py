@@ -219,6 +219,10 @@ class Polygon:
 		assert isNumeric(y_center, include_numpy_flag = True) == True, "Polygon::rotate: Provided value for 'y_center' must be numeric"
 		assert -float("inf") < y_center and y_center < float("inf"), "Polygon::rotate: Provided value for 'y_center' must be finite"
 
+		# CLose the currently existing render figure and axis (if needed)
+		if self._render_figure is not None:
+			plt.close(self._render_figure)
+
 		# Set the preprocess flags to False and forget the previous bevel and sun information
 		# Bevel info (in order of appearance from preprocessBevelInfo)
 		self._preprocess_bevel_flag = False
@@ -273,6 +277,10 @@ class Polygon:
 		assert isNumeric(y_center, include_numpy_flag = True) == True, "Polygon::scale: Provided value for 'y_center' must be numeric"
 		assert -float("inf") < y_center and y_center < float("inf"), "Polygon::scale: Provided value for 'y_center' must be finite"
 
+		# CLose the currently existing render figure and axis (if needed)
+		if self._render_figure is not None:
+			plt.close(self._render_figure)
+
 		# Set the preprocess flags to False and forget the previous bevel and sun information
 		# Bevel info (in order of appearance from preprocessBevelInfo)
 		self._preprocess_bevel_flag = False
@@ -309,7 +317,22 @@ class Polygon:
 		self._y_lower = min(self._y_value_per_vertex)
 		self._y_upper = max(self._y_value_per_vertex)
 
-	### Define external functions which preprocess information for rendering ###
+	### Define external functions which handle preprocessed information for rendering ###
+	def closeFigure(self):
+		# Have matplotlib close the current render figure to save on memory and update the flags accordingly
+		# Close the currently existing render figure to save on memory (if needed)
+		if self._render_figure is not None:
+			plt.close(self._render_figure)
+
+		# Set the preprocess flags to False and forget previous bevel and sun information
+		self._preprocess_bevel_flag = False
+		self._preprocess_sun_flag = False
+		self._bevel_attitude = None
+		self._bevel_size = None
+		self._sun_angle = None
+		self._sun_attitude = None
+		self._raw_brightness_per_face = None
+
 	def preprocessBevelInfo(self, bevel_attitude:Any, bevel_size:Any):
 		# Preprocess all information related to the bevel
 		# Verify the inputs
@@ -317,6 +340,10 @@ class Polygon:
 		assert 0 <= bevel_attitude and bevel_attitude <= 75, "Polygon::preprocessBevelInfo: Provided value for 'bevel_attitude' must be >= 0 and <= 75"
 		assert isNumeric(bevel_size, include_numpy_flag = True) == True, "Polygon::preprocessBevelInfo: Provided value for 'bevel_size' must be numeric"
 		assert bevel_size > 0, "Polygon::preprocessBevelInfo: Provided value for 'bevel_size' must be positive"
+
+		# Close the currently existing render figure to save on memory (if needed)
+		if self._render_figure is not None:
+			plt.close(self._render_figure)
 
 		# Store the provided values
 		self._bevel_attitude = bevel_attitude
@@ -547,6 +574,10 @@ class Polygon:
 		# Rewind to the beginning of the buffer and load the render as a PIL image
 		image_buffer.seek(0)
 		polygon_render = Image.open(image_buffer)
+
+		# Force the image to load from the buffer so that the buffer can be closed
+		polygon_render.load()
+		image_buffer.close()
 
 		# Return the result
 		return polygon_render

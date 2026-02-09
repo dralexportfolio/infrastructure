@@ -34,8 +34,6 @@ board_decorator = private_attributes_dec("_all_bevel_info_flag",		# class variab
 										 "_all_tint_shades",
 										 "_hash_per_polygon",
 										 "_n_polygons",
-										 "_render_axis",
-										 "_render_figure",
 										 "_unique_polygons_per_hash",
 										 "_x_lower",
 										 "_x_shift_per_polygon",
@@ -173,12 +171,19 @@ class Board:
 				# Store the fact that the old hash became the new hash
 				updated_hashes[polygon_hash] = new_polygon_hash
 
-				# Add this polygon to the dictionary of unique polygons (if needed)
+				# Add this polygon to the dictionary of unique polygons, otherwise close the figure associated with this new polygon (to save on memory)
 				if new_polygon_hash not in self._unique_polygons_per_hash:
 					self._unique_polygons_per_hash[new_polygon_hash] = new_polygon
+				else:
+					new_polygon.closeFigure()
 
 			# Update the hash associated with this polygon index
 			self._hash_per_polygon[needed_index] = new_polygon_hash
+
+			# Remove the old polygon from the dictionary if it is no longer being using (to save on memory)
+			if polygon_hash not in self._hash_per_polygon:
+				self._unique_polygons_per_hash[polygon_hash].closeFigure()
+				del self._unique_polygons_per_hash[polygon_hash]
 
 		# Determine if all bevel and sun information of all polygons have already been preprocessed
 		self._checkFlags()
@@ -219,12 +224,19 @@ class Board:
 				# Store the fact that the old hash became the new hash
 				updated_hashes[polygon_hash] = new_polygon_hash
 
-				# Add this polygon to the dictionary of unique polygons (if needed)
+				# Add this polygon to the dictionary of unique polygons, otherwise close the figure associated with this new polygon (to save on memory)
 				if new_polygon_hash not in self._unique_polygons_per_hash:
 					self._unique_polygons_per_hash[new_polygon_hash] = new_polygon
+				else:
+					new_polygon.closeFigure()
 
 			# Update the hash associated with this polygon index
 			self._hash_per_polygon[needed_index] = new_polygon_hash
+
+			# Remove the old polygon from the dictionary if it is no longer being using (to save on memory)
+			if polygon_hash not in self._hash_per_polygon:
+				self._unique_polygons_per_hash[polygon_hash].closeFigure()
+				del self._unique_polygons_per_hash[polygon_hash]
 
 		# Determine if all bevel and sun information of all polygons have already been preprocessed
 		self._checkFlags()
@@ -259,11 +271,11 @@ class Board:
 		assert 72 <= dpi and dpi <= 900, "Board::render: Provided value for 'dpi' must be >= 72 and <= 900"
 
 		# Create the figure and axis to which to render, crop it to the needed size (in normalized figure coordinates), and adjust the axis as needed
-		self._render_figure, self._render_axis = plt.subplots(figsize = (self._x_upper - self._x_lower, self._y_upper - self._y_lower))
-		self._render_figure.subplots_adjust(left = 0, right = 1, bottom = 0, top = 1, wspace = 0, hspace = 0)
-		self._render_axis.set_xlim(left = self._x_lower, right = self._x_upper)
-		self._render_axis.set_ylim(bottom = self._y_lower, top = self._y_upper)
-		self._render_axis.axis("off")
+		render_figure, render_axis = plt.subplots(figsize = (self._x_upper - self._x_lower, self._y_upper - self._y_lower))
+		render_figure.subplots_adjust(left = 0, right = 1, bottom = 0, top = 1, wspace = 0, hspace = 0)
+		render_axis.set_xlim(left = self._x_lower, right = self._x_upper)
+		render_axis.set_ylim(bottom = self._y_lower, top = self._y_upper)
+		render_axis.axis("off")
 
 		# Loop over the polygons and render each associated patch
 		for polygon_index in range(self._n_polygons):
@@ -293,23 +305,28 @@ class Board:
 					vertex_array[row_index, 1] = y_values_per_face[face_index][row_index]
 
 				# Create the needed patch in the given color and add it to the plot
-				self._render_axis.add_patch(patches.Polygon(vertex_array, closed = True,
-															edgecolor = None, linewidth = 0,
-															antialiased = False, zorder = face_index,
-															facecolor = rgb_values_per_face[face_index]))
+				render_axis.add_patch(patches.Polygon(vertex_array, closed = True,
+													  edgecolor = None, linewidth = 0,
+													  antialiased = False, zorder = face_index,
+													  facecolor = rgb_values_per_face[face_index]))
 
 		# Redraw the canvas now that all faces have been updated
-		self._render_figure.canvas.draw_idle()
+		render_figure.canvas.draw_idle()
 
 		# Create a buffer to which the image will be saved
 		image_buffer = BytesIO()
 
 		# Save the figure to the buffer
-		self._render_figure.savefig(image_buffer, dpi = dpi, format = "png", transparent = True)
+		render_figure.savefig(image_buffer, dpi = dpi, format = "png", transparent = True)
 
 		# Rewind to the beginning of the buffer and load the render as a PIL image
 		image_buffer.seek(0)
 		board_render = Image.open(image_buffer)
+
+		# Force the image to load from the buffer so that the buffer and figure can be closed
+		board_render.load()
+		image_buffer.close()
+		plt.close(render_figure)
 
 		# Return the result
 		return board_render
