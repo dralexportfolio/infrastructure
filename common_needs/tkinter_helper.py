@@ -41,8 +41,8 @@ def askOpenFilename(allowed_extensions:list = None, title:str = "Please Select A
 		assert isListWithStringEntries(allowed_extensions, allow_empty_flag = False) == True, "askOpenFilename: If provided, value for 'allowed_extensions' must be a list object with non-empty strings as entries"
 		assert len(allowed_extensions) > 0, "askOpenFilename: If provided, value for 'allowed_extensions' must be a non-empty list"
 		for extension in allowed_extensions:
-			for letter in extension.lower():
-				assert letter in "abcdefghijklmnopqrstuvwxyz", "askOpenFilename: If provided, value for 'allowed_extensions' must have entries containing only the letters a through z"
+			for character in extension.lower():
+				assert character in "abcdefghijklmnopqrstuvwxyz0123456789", "askOpenFilename: If provided, value for 'allowed_extensions' must have entries containing only the letters a through z and numbers 0 through 9"
 	assert type(title) == str, "askOpenFilename: Provided value for 'title' must be a str object"
 
 	# Construct the list of allowed extensions as needed by tkinter
@@ -91,8 +91,8 @@ def askSaveFilename(allowed_extensions:list = None, title:str = "Please Select A
 		assert isListWithStringEntries(allowed_extensions, allow_empty_flag = False) == True, "askSaveFilename: If provided, value for 'allowed_extensions' must be a list object with non-empty strings as entries"
 		assert len(allowed_extensions) > 0, "askSaveFilename: If provided, value for 'allowed_extensions' must be a non-empty list"
 		for extension in allowed_extensions:
-			for letter in extension.lower():
-				assert letter in "abcdefghijklmnopqrstuvwxyz", "askSaveFilename: If provided, value for 'allowed_extensions' must have entries containing only the letters a through z"
+			for character in extension.lower():
+				assert character in "abcdefghijklmnopqrstuvwxyz0123456789", "askSaveFilename: If provided, value for 'allowed_extensions' must have entries containing only the letters a through z and numbers 0 through 9"
 	assert type(title) == str, "askSaveFilename: Provided value for 'title' must be a str object"
 
 	# Construct the list of allowed extensions as needed by tkinter

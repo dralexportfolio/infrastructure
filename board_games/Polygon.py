@@ -521,6 +521,7 @@ class Polygon:
 		render_info = {
 			"n_faces": self._n_vertices + 1,
 			"n_edges_per_face": self._n_edges_per_face,
+			"raw_brightness_per_face": self._raw_brightness_per_face,
 			"x_values_per_face": [[x_value + x_shift for x_value in x_values] for x_values in self._x_values_per_face],
 			"y_values_per_face": [[y_value + y_shift for y_value in y_values] for y_values in self._y_values_per_face],
 			"rgb_values_per_face": []
