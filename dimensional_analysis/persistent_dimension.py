@@ -14,7 +14,7 @@ path.insert(0, str(infrastructure_folder.joinpath("common_needs")))
 from color_helper import customSpectrum
 from dimension_reduction import performPCA
 from spline_helper import LinearSpline
-from sqlite3_helper import addTable, appendRow, getColumnNames, getRowCount, readRow, replaceRow
+from sqlite3_helper import addTable, appendRow, getColumnNames, getRowCount, readColumn, readRow, replaceRow
 from tkinter_helper import askSaveFilename
 from type_helper import isNumeric
 
@@ -35,24 +35,37 @@ from typing import Any, Union
 ### Set the needed table names ###
 ##################################
 TABLE_NAME_INPUT_SETTINGS = "input_settings"
+TABLE_NAME_DISTANCES_USED = "distances_used"
 TABLE_NAME_RAW_DATA_ARRAY = "raw_data_array"
 TABLE_NAME_PROJECTED_DATA_ARRAY = "projected_data_array"
 TABLE_NAME_CUMULATIVE_PERCENT_VARIANCES = "cumulative_percent_variances"
 
 
-###################################################################################################################
-### Define a function generates a db file needed for estimating the local dimension of each point in a data set ###
-###################################################################################################################
-def generateDimensionDatabase(raw_data_array:ndarray, softmax_distance:Any) -> Union[PosixPath, WindowsPath]:
+###############################################################################################################################################################
+### Define a function generates a db file needed for estimating the local dimension of each point in a data set at a variety of softmax distance parameters ###
+###############################################################################################################################################################
+def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, max_softmax_distance:Any, n_distances:int = 10) -> Union[PosixPath, WindowsPath]:
 	# Use PCA to compute the information for estimating pointwise dimension and write it to a db file, return the path written to
 	# Verify the inputs
 	assert type(raw_data_array) == ndarray, "generateDimensionDatabase: Provided value for 'raw_data_array' must be a numpy.ndarray object"
 	assert len(raw_data_array.shape) == 2, "generateDimensionDatabase: Provided value for 'raw_data_array' must be a 2-dimensional numpy array"
 	assert raw_data_array.shape[0] > 0, "generateDimensionDatabase: Provided value for 'raw_data_array' must have a non-zero number of points, i.e. at least 1 row"
 	assert raw_data_array.shape[1] > 0, "generateDimensionDatabase: Provided value for 'raw_data_array' must have a non-zero number of features, i.e. at least 1 column"
-	assert isNumeric(softmax_distance, include_numpy_flag = True) == True, "generateDimensionDatabase: Provided value for 'softmax_distance' must be numeric"
-	assert 0 < softmax_distance and softmax_distance < float("inf"), "generateDimensionDatabase: Provided value for 'softmax_distance' must be positive and finite"
-	
+	assert isNumeric(min_softmax_distance, include_numpy_flag = True) == True, "generateDimensionDatabase: Provided value for 'min_softmax_distance' must be numeric"
+	assert isNumeric(max_softmax_distance, include_numpy_flag = True) == True, "generateDimensionDatabase: Provided value for 'max_softmax_distance' must be numeric"
+	assert 0 < min_softmax_distance and min_softmax_distance < float("inf"), "generateDimensionDatabase: Provided value for 'min_softmax_distance' must be positive and finite"
+	assert 0 < max_softmax_distance and max_softmax_distance < float("inf"), "generateDimensionDatabase: Provided value for 'max_softmax_distance' must be positive and finite"
+	assert min_softmax_distance < max_softmax_distance, "generateDimensionDatabase: Provided value for 'min_softmax_distance' must be less than value for 'max_softmax_distance'"
+	assert type(n_distances) == int, "generateDimensionDatabase: Provided value for 'n_distances' must be an int object"
+	assert n_distances >= 3, "generateDimensionDatabase: Provided value for 'n_distances' must be >= 3"
+
+	# Compute the softmax distances to use and get the associated table names
+	all_softmax_distances = []
+	all_cumulative_table_names = []
+	for distance_index in range(n_distances):
+		all_softmax_distances.append(min_softmax_distance + (max_softmax_distance - min_softmax_distance) * distance_index / (n_distances - 1))
+		all_cumulative_table_names.append(TABLE_NAME_CUMULATIVE_PERCENT_VARIANCES + "_" + str(distance_index))
+
 	# Get the db filename to save to and delete any existing file (if needed), raise error if not selected
 	db_path = askSaveFilename(allowed_extensions = ["db"])
 	if exists(db_path):
@@ -64,28 +77,38 @@ def generateDimensionDatabase(raw_data_array:ndarray, softmax_distance:Any) -> U
 	
 	# Create the column names and types needed for the needed tables
 	# Input settings table
-	input_settings_column_names = ["n_rows", "n_cols", "softmax_distance"]
-	input_settings_column_types = ["BIGINT", "BIGINT", "REAL"]
+	input_settings_column_names = ["n_rows", "n_cols", "min_softmax_distance", "max_softmax_distance", "n_distances"]
+	input_settings_column_types = ["BIGINT", "BIGINT", "REAL", "REAL", "BIGINT"]
+	# Distances used table
+	distances_used_column_names = ["table_name", "softmax_distance"]
+	distances_used_column_types = ["TEXT", "REAL"]
 	# Raw data array table
 	raw_data_array_column_names = ["parameter_" + str(index + 1) for index in range(n_cols)]
 	raw_data_array_column_types = ["REAL" for _ in range(n_cols)]
 	# Projected data array table
 	projected_data_array_column_names = ["parameter_" + str(index + 1) for index in range(n_cols)]
 	projected_data_array_column_types = ["REAL" for _ in range(n_cols)]
-	# Cumulative percent variances table
+	# Cumulative percent variances tables
 	cumulative_percent_variances_column_names = ["cumulative_" + str(index) for index in range(n_cols + 1)]
 	cumulative_percent_variances_column_types = ["REAL" for _ in range(n_cols + 1)]
 	
 	# Create the needed db file and tables
 	addTable(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS, column_names = input_settings_column_names, column_types = input_settings_column_types)
+	addTable(db_path = db_path, table_name = TABLE_NAME_DISTANCES_USED, column_names = distances_used_column_names, column_types = distances_used_column_types)
 	addTable(db_path = db_path, table_name = TABLE_NAME_RAW_DATA_ARRAY, column_names = raw_data_array_column_names, column_types = raw_data_array_column_types)
 	addTable(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, column_names = projected_data_array_column_names, column_types = projected_data_array_column_types)
-	addTable(db_path = db_path, table_name = TABLE_NAME_CUMULATIVE_PERCENT_VARIANCES, column_names = cumulative_percent_variances_column_names, column_types = cumulative_percent_variances_column_types)
+	for distance_index in range(n_distances):
+		addTable(db_path = db_path, table_name = all_cumulative_table_names[distance_index], column_names = cumulative_percent_variances_column_names, column_types = cumulative_percent_variances_column_types)
 
 	# Write the settings to the db file
 	appendRow(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS)
-	replaceRow(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0, new_row = [n_rows, n_cols, float(softmax_distance)])
-	
+	replaceRow(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0, new_row = [n_rows, n_cols, float(min_softmax_distance), float(max_softmax_distance), n_distances])
+
+	# Write the softmax distances and associated table names to the db file
+	for distance_index in range(n_distances):
+		appendRow(db_path = db_path, table_name = TABLE_NAME_DISTANCES_USED)
+		replaceRow(db_path = db_path, table_name = TABLE_NAME_DISTANCES_USED, row_index = distance_index, new_row = [all_cumulative_table_names[distance_index], float(all_softmax_distances[distance_index])])
+
 	# Write the raw data array to the db file
 	for row_index in range(n_rows):
 		# Get the new row as float values
@@ -116,39 +139,53 @@ def generateDimensionDatabase(raw_data_array:ndarray, softmax_distance:Any) -> U
 		for other_row_index in range(n_rows):
 			distance_array[other_row_index] = norm(raw_data_array[other_row_index, :] - center_vector)
 
-		# Compute the weight vector using softmax on the distances
-		weight_vector = softmax(-(distance_array / softmax_distance)**2)
-		
-		# Compute the needed PCA results
-		pca_results = performPCA(raw_data_array = raw_data_array, normalize_flag = False, center_vector = center_vector, weight_vector = weight_vector)
-		
-		# Compute the cumulative percent variances from these results (note: force first and last values to be 0 and 100 respectively)
-		cumulative_percent_variances = [0.0] + [float(value) for value in cumsum(pca_results["outputs"]["ordered_percent_variances"])]
-		cumulative_percent_variances[-1] = 100.0
-		
-		# Write this information to the db file
-		appendRow(db_path = db_path, table_name = TABLE_NAME_CUMULATIVE_PERCENT_VARIANCES)
-		replaceRow(db_path = db_path, table_name = TABLE_NAME_CUMULATIVE_PERCENT_VARIANCES, row_index = row_index, new_row = cumulative_percent_variances)
+		# Loop over the needed softmax distances
+		for distance_index in range(n_distances):
+			# Compute the weight vector using softmax on the distances
+			weight_vector = softmax(-(distance_array / all_softmax_distances[distance_index])**2)
+
+			# Compute the needed PCA results
+			pca_results = performPCA(raw_data_array = raw_data_array, normalize_flag = False, center_vector = center_vector, weight_vector = weight_vector)
+
+			# Compute the cumulative percent variances from these results (note: force first and last values to be 0 and 100 respectively)
+			cumulative_percent_variances = [0.0] + [float(value) for value in cumsum(pca_results["outputs"]["ordered_percent_variances"])]
+			cumulative_percent_variances[-1] = 100.0
+
+			# Write this information to the db file
+			appendRow(db_path = db_path, table_name = all_cumulative_table_names[distance_index])
+			replaceRow(db_path = db_path, table_name = all_cumulative_table_names[distance_index], row_index = row_index, new_row = cumulative_percent_variances)
 		
 	# Return the path of the db file
 	return db_path
-		
+
 
 #########################################################################################
 ### Define a function which estimates the local dimension of each point in a data set ###
 #########################################################################################
-def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], percent_variance:Any) -> list:
+def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], percent_variance:Any, softmax_distance:Any) -> list:
 	# Compute the pointwise dimension for each point the data set using the pre-computed db file
 	# Verify the inputs
 	assert type(db_path) in [PosixPath, WindowsPath], "estimatePointwiseDimension: Provided value for 'db_path' must be a PosixPath or WindowsPath object"
 	assert isNumeric(percent_variance, include_numpy_flag = True) == True, "estimatePointwiseDimension: Provided value for 'percent_variance' must be numeric"
 	assert 0 <= percent_variance and percent_variance <= 100, "estimatePointwiseDimension: Provided value for 'percent_variance' must be >= 0 and <= 100"
+	assert isNumeric(softmax_distance, include_numpy_flag = True) == True, "estimatePointwiseDimension: Provided value for 'softmax_distance' must be numeric"
 
-	# Get the number of rows and columns in the raw data
+	# Get the relevant input settings from the db file
 	read_row = readRow(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
 	n_rows = read_row[0]
 	n_cols = read_row[1]
-	
+	min_softmax_distance = read_row[2]
+	max_softmax_distance = read_row[3]
+
+	# Get the softmax distances and associated table names from the db file
+	all_softmax_distances = readColumn(db_path = db_path, table_name = TABLE_NAME_DISTANCES_USED, column_name = "softmax_distance")
+	all_cumulative_table_names = readColumn(db_path = db_path, table_name = TABLE_NAME_DISTANCES_USED, column_name = "table_name")
+
+	# Verify that the softmax is valid
+	assert min_softmax_distance <= softmax_distance and softmax_distance <= max_softmax_distance, "estimatePointwiseDimension: Provided value for 'softmax_distance' must be between minimum and maximum softmax distances stored in this db file"
+
+
+
 	# Create the y-values for the linear splines
 	y_values = [index for index in range(n_cols + 1)]
 	
