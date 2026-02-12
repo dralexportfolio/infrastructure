@@ -208,8 +208,8 @@ def verifyDimensionDatabase(db_path:Union[PosixPath, WindowsPath]):
 #########################################################################################
 ### Define a function which estimates the local dimension of each point in a data set ###
 #########################################################################################
-def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], percent_variance:Any, softmax_distance:Any) -> list:
-	# Compute the pointwise dimension for each point the data stored in the pre-computed db file
+def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], percent_variance:Any, softmax_distance:Any, needed_indices:list = None) -> dict:
+	# Compute the pointwise dimension for each requested point the data stored in the pre-computed db file
 	# Verify that the provided db file is a valid dimension database
 	verifyDimensionDatabase(db_path = db_path)
 
@@ -217,6 +217,11 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], percent_va
 	assert isNumeric(percent_variance, include_numpy_flag = True) == True, "estimatePointwiseDimension: Provided value for 'percent_variance' must be numeric"
 	assert 0 <= percent_variance and percent_variance <= 100, "estimatePointwiseDimension: Provided value for 'percent_variance' must be >= 0 and <= 100"
 	assert isNumeric(softmax_distance, include_numpy_flag = True) == True, "estimatePointwiseDimension: Provided value for 'softmax_distance' must be numeric"
+	if needed_indices is not None:
+		assert type(needed_indices) == list, "estimatePointwiseDimension: If provided, value for 'needed_indices' must be a list object"
+		assert len(needed_indices) > 0, "estimatePointwiseDimension: If provided, value for 'needed_indices' must be a non-empty list"
+		for row_index in needed_indices:
+			assert type(row_index) == int, "estimatePointwiseDimension: If provided, value for 'needed_indices' must be a list of int objects"
 
 	# Get the relevant input settings from the db file
 	read_row = readRow(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
@@ -225,6 +230,16 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], percent_va
 	min_softmax_distance = read_row[2]
 	max_softmax_distance = read_row[3]
 	n_distances = read_row[4]
+
+	# Handle additional verification of setting of the needed indices
+	if needed_indices is None:
+		# Needed indices not provided, compute for all points in the database
+		needed_indices = range(n_rows)
+	else:
+		# Specific indices requested, make sure they are valid
+		assert len(set(needed_indices)) == len(needed_indices), "estimatePointwiseDimension: If provided, value for 'needed_indices' must be a list of distinct entries"
+		for row_index in needed_indices:
+			assert 0 <= row_index and row_index < n_rows, "estimatePointwiseDimension: If provided, value for 'needed_indices' must be a list of non-negative integers less the number of rows from the database (in this case " + str(n_rows) + ")"
 
 	# Verify that the softmax is valid
 	assert min_softmax_distance <= softmax_distance and softmax_distance <= max_softmax_distance, "estimatePointwiseDimension: Provided value for 'softmax_distance' must be between minimum and maximum softmax distances stored in this db file"
@@ -252,11 +267,11 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], percent_va
 	# Create the y-values for the linear splines
 	y_values = [index for index in range(n_cols + 1)]
 	
-	# Initialize the list of results
-	dimension_results = []
+	# Initialize the dictionary of results
+	dimension_results = {}
 	
 	# Compute the dimension estimates for each point
-	for row_index in range(n_rows):
+	for row_index in needed_indices:
 		# Initialize the current dimension estimate
 		dimension_estimate = 0
 
@@ -271,8 +286,8 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], percent_va
 			# Update the dimension estimate according to the given weight
 			dimension_estimate += needed_weights[table_index] * linear_spline.evaluate(x_value = percent_variance)
 
-		# Append the current dimension estimate
-		dimension_results.append(dimension_estimate)
+		# Add the current dimension estimate to the dictionary
+		dimension_results[row_index] = dimension_estimate
 	
 	# Return the results
 	return dimension_results
