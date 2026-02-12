@@ -73,9 +73,9 @@ def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, 
 
 	# Verify that the minimum and maximum softmax distances are valid given the choice for number of softmax distances
 	if n_distances == 1:
-		assert min_softmax_distance == max_softmax_distance, "generateDimensionDatabase: If provided value for 'n_distances' is equal to 1 then value for 'min_softmax_distance' must be equal to value for 'max_softmax_distance'"
+		assert min_softmax_distance == max_softmax_distance, "generateDimensionDatabase: If provided value for 'n_distances' is equal to 1, value for 'min_softmax_distance' must be equal to value for 'max_softmax_distance'"
 	else:
-		assert min_softmax_distance < max_softmax_distance, "generateDimensionDatabase: If provided value for 'n_distances' is greater than 1 then value for 'min_softmax_distance' must be less than value for 'max_softmax_distance'"
+		assert min_softmax_distance < max_softmax_distance, "generateDimensionDatabase: If provided value for 'n_distances' is greater than 1, value for 'min_softmax_distance' must be less than value for 'max_softmax_distance'"
 
 	# Compute the softmax distances to use and get the associated table names
 	all_softmax_distances = [min_softmax_distance]
@@ -208,15 +208,15 @@ def verifyDimensionDatabase(db_path:Union[PosixPath, WindowsPath]):
 #########################################################################################
 ### Define a function which estimates the local dimension of each point in a data set ###
 #########################################################################################
-def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], percent_variance:Any, softmax_distance:Any, needed_indices:list = None) -> dict:
+def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], softmax_distance:Any, percent_variance:Any, needed_indices:list = None) -> dict:
 	# Compute the pointwise dimension for each requested point the data stored in the pre-computed db file
 	# Verify that the provided db file is a valid dimension database
 	verifyDimensionDatabase(db_path = db_path)
 
 	# Verify the other inputs
+	assert isNumeric(softmax_distance, include_numpy_flag = True) == True, "estimatePointwiseDimension: Provided value for 'softmax_distance' must be numeric"
 	assert isNumeric(percent_variance, include_numpy_flag = True) == True, "estimatePointwiseDimension: Provided value for 'percent_variance' must be numeric"
 	assert 0 <= percent_variance and percent_variance <= 100, "estimatePointwiseDimension: Provided value for 'percent_variance' must be >= 0 and <= 100"
-	assert isNumeric(softmax_distance, include_numpy_flag = True) == True, "estimatePointwiseDimension: Provided value for 'softmax_distance' must be numeric"
 	if needed_indices is not None:
 		assert type(needed_indices) == list, "estimatePointwiseDimension: If provided, value for 'needed_indices' must be a list object"
 		assert len(needed_indices) > 0, "estimatePointwiseDimension: If provided, value for 'needed_indices' must be a non-empty list"
@@ -291,7 +291,53 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], percent_va
 	
 	# Return the results
 	return dimension_results
-	
+
+
+##########################################################################
+### Define functions for visualizing the pointwise dimension estimates ###
+##########################################################################
+def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], min_softmax_distance:Any, max_softmax_distance:Any, min_percent_variance:Any = 0,
+								 max_percent_variance:Any = 100, used_engine:str = "matplotlib", show_flag:bool = True, save_flag:bool = False):
+	# Generate a plot of the estimated dimension for the given point
+	# Verify that the provided db file is a valid dimension database
+	verifyDimensionDatabase(db_path = db_path)
+
+	# Get the relevant input settings from the db file
+	read_row = readRow(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
+	n_rows = read_row[0]
+	n_cols = read_row[1]
+	n_distances = read_row[4]
+
+	# Verify the other inputs
+	# Softmax distance and percent variance bounds
+	assert isNumeric(min_softmax_distance, include_numpy_flag = True) == True, "plotDimensionEstimateOfPoint: Provided value for 'min_softmax_distance' must be numeric"
+	assert isNumeric(max_softmax_distance, include_numpy_flag = True) == True, "plotDimensionEstimateOfPoint: Provided value for 'max_softmax_distance' must be numeric"
+	assert 0 < min_softmax_distance and min_softmax_distance < float("inf"), "plotDimensionEstimateOfPoint: Provided value for 'min_softmax_distance' must be positive and finite"
+	assert 0 < max_softmax_distance and max_softmax_distance < float("inf"), "plotDimensionEstimateOfPoint: Provided value for 'max_softmax_distance' must be positive and finite"
+	assert min_softmax_distance <= max_softmax_distance, "plotDimensionEstimateOfPoint: Provided value for 'min_softmax_distance' must be less than or equal to value for 'max_softmax_distance'"
+	assert isNumeric(min_softmax_distance, include_numpy_flag = True) == True, "plotDimensionEstimateOfPoint: Provided value for 'min_softmax_distance' must be numeric"
+	assert isNumeric(max_softmax_distance, include_numpy_flag = True) == True, "plotDimensionEstimateOfPoint: Provided value for 'max_softmax_distance' must be numeric"
+	assert 0 <= min_percent_variance and min_percent_variance <= 100, "plotDimensionEstimateOfPoint: Provided value for 'min_percent_variance' must be >= 0 and <= 100"
+	assert 0 <= max_percent_variance and max_percent_variance <= 100, "plotDimensionEstimateOfPoint: Provided value for 'max_percent_variance' must be >= 0 and <= 100"
+	assert min_percent_variance <= max_percent_variance, "plotDimensionEstimateOfPoint: Provided value for 'min_percent_variance' must be less than or equal to value for 'max_percent_variance'"
+
+	# Make sure the softmax distance bounds are valid given the contents of the db file
+	assert read_row[2] <= min_percent_variance and min_percent_variance <= red_row[3], "plotDimensionEstimateOfPoint: Provided value for 'min_softmax_distance' must fall in the range given by the db file (in this case " + str(read_row[2]) + " to " + str(read_row[3]) + ")"
+	assert read_row[2] <= max_percent_variance and max_percent_variance <= red_row[3], "plotDimensionEstimateOfPoint: Provided value for 'max_softmax_distance' must fall in the range given by the db file (in this case " + str(read_row[2]) + " to " + str(read_row[3]) + ")"
+
+	# Make sure at least one of the bounds is non-trivial
+	assert min_softmax_distance < max_softmax_distance or min_percent_variance < max_percent_variance, "plotDimensionEstimateOfPoint: At least one of 'min_softmax_distance' < 'max_softmax_distance' or 'min_percent_variance' < 'max_percent_variance' must be True"
+
+	# Handle the various cases
+	if min_softmax_distance == max_softmax_distance:
+		# Create a 2D plot with fixed softmax distance
+		pass
+	elif min_percent_variance == max_percent_variance:
+		# Create a 2D plot with fixed percent variance
+		pass
+	else:
+		# Create a 3D plot varying over both variables
+		pass
 '''
 ###########################################################################################
 ### Define functions for generating visualizations of the pointwise dimension estimates ###
