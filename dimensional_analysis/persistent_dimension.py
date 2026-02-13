@@ -52,7 +52,7 @@ TABLE_NAME_PROJECTED_DATA_ARRAY = "projected_data_array"
 COLUMN_NAMES_FUNCTION_PROJECTED_DATA_ARRAY = lambda n_cols: ["parameter_" + str(index + 1) for index in range(n_cols)]
 COLUMN_TYPES_FUNCTION_PROJECTED_DATA_ARRAY = lambda n_cols: ["REAL" for _ in range(n_cols)]
 # Cumulative percent variances tables
-BASE_TABLE_NAME_CUMULATIVE_PERCENT_VARIANCES = "cumulative_percent_variances"
+TABLE_NAME_FUNCTION_CUMULATIVE_PERCENT_VARIANCES = lambda distance_index: "cumulative_percent_variances_" + str(distance_index)
 COLUMN_NAMES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES = lambda n_cols: ["cumulative_" + str(index) for index in range(n_cols + 1)]
 COLUMN_TYPES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES = lambda n_cols: ["REAL" for _ in range(n_cols + 1)]
 
@@ -79,10 +79,10 @@ def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, 
 
 	# Compute the softmax distances to use and get the associated table names
 	all_softmax_distances = [min_softmax_distance]
-	all_cumulative_table_names = [BASE_TABLE_NAME_CUMULATIVE_PERCENT_VARIANCES + "_0"]
+	all_cumulative_table_names = [TABLE_NAME_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(0)]
 	for distance_index in range(1, n_distances):
 		all_softmax_distances.append(min_softmax_distance + (max_softmax_distance - min_softmax_distance) * distance_index / (n_distances - 1))
-		all_cumulative_table_names.append(BASE_TABLE_NAME_CUMULATIVE_PERCENT_VARIANCES + "_" + str(distance_index))
+		all_cumulative_table_names.append(TABLE_NAME_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(distance_index))
 
 	# Get the db filename to save to and delete any existing file (if needed), raise error if not selected
 	db_path = askSaveFilename(allowed_extensions = ["db"])
@@ -198,7 +198,7 @@ def verifyDimensionDatabase(db_path:Union[PosixPath, WindowsPath]):
 	assert getRowCount(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY) == n_rows, "verifyDimensionDatabase: Table of name " + TABLE_NAME_PROJECTED_DATA_ARRAY + " has the incorrect number or rows"
 	# Cumulative percent variances tables
 	for distance_index in range(n_distances):
-		current_table_name = BASE_TABLE_NAME_CUMULATIVE_PERCENT_VARIANCES + "_" + str(distance_index)
+		current_table_name = TABLE_NAME_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(distance_index)
 		assert current_table_name in table_names, "verifyDimensionDatabase: Provided value for 'db_path' must refer to a database with " + current_table_name + " as a table name"
 		assert getColumnNames(db_path = db_path, table_name = current_table_name) == COLUMN_NAMES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_cols), "verifyDimensionDatabase: Table of name " + current_table_name + " has the incorrect column names"
 		assert getColumnTypes(db_path = db_path, table_name = current_table_name) == COLUMN_TYPES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_cols), "verifyDimensionDatabase: Table of name " + current_table_name + " has the incorrect column types"
@@ -244,6 +244,59 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], softmax_di
 	# Verify that the softmax is valid
 	assert min_softmax_distance <= softmax_distance and softmax_distance <= max_softmax_distance, "estimatePointwiseDimension: Provided value for 'softmax_distance' must be between minimum and maximum softmax distances stored in this db file"
 
+	# Define an internal helper function for getting a dimension estimate at a given softmax distance index
+	def getDimensionEstimate(softmax_index:int, row_index:int) -> float:
+		# Load the cumulative percent variances for this data point
+		all_percent_variances = readRow(db_path = db_path, table_name = TABLE_NAME_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(softmax_index), row_index = row_index)
+
+		# Compute the estimated dimension by linearly interpolating
+		for percent_index in range(n_cols):
+			# Get the current percent variance bounds
+			lower_percent_variance = all_percent_variances[percent_index]
+			upper_percent_variance = all_percent_variances[percent_index + 1]
+
+			# Proceed if the percent variance is in this range
+			if lower_percent_variance <= percent_variance and percent_variance <= upper_percent_variance:
+				# Compute the lower and upper percent variance weights
+				lower_percent_weight = (upper_percent_variance - percent_variance) / (upper_percent_variance - lower_percent_variance)
+				upper_percent_weight = (percent_variance - lower_percent_variance) / (upper_percent_variance - lower_percent_variance)
+
+				# Return the needed dimension estimate and break
+				return lower_percent_weight * percent_index + upper_percent_weight * (percent_index + 1)
+
+	# Initialize the dictionary of results
+	dimension_results = {}
+
+	# Compute the dimension estimates for each point
+	for row_index in needed_indices:
+		if n_distances == 1:
+			# Only a single softmax distance was used, do a single variable linear interpolation
+			dimension_results[row_index] = getDimensionEstimate(softmax_index = 0, row_index = row_index)
+		else:
+			# Multiple softmax distances were used, do a double variable linear interpolation
+			# Load the list of softmax distances used
+			all_softmax_distances = readColumn(db_path = db_path, table_name = TABLE_NAME_DISTANCES_USED, column_name = "softmax_distance")
+
+			# Search for the correct range of softmax
+			for softmax_index in range(n_distances - 1):
+				# Get the current softmax distance bounds
+				lower_softmax_distance = all_softmax_distances[softmax_index]
+				upper_softmax_distance = all_softmax_distances[softmax_index + 1]
+
+				# Proceed if the softmax distance is in this range
+				if lower_softmax_distance <= softmax_distance and softmax_distance <= upper_softmax_distance:
+					# Compute the lower and upper softmax weights
+					lower_softmax_weight = (upper_softmax_distance - softmax_distance) / (upper_softmax_distance - lower_softmax_distance)
+					upper_softmax_weight = (softmax_distance - lower_softmax_distance) / (upper_softmax_distance - lower_softmax_distance)
+
+					# Compute the dimension estimate using the lower and upper softmax distances
+					lower_dimension_estimate = getDimensionEstimate(softmax_index = softmax_index, row_index = row_index)
+					upper_dimension_estimate = getDimensionEstimate(softmax_index = softmax_index + 1, row_index = row_index)
+
+					# Combine to get the needed dimension estimate
+					dimension_results[row_index] = lower_softmax_weight * lower_dimension_estimate + upper_softmax_weight * upper_dimension_estimate
+
+	'''
 	# Get the softmax distances and associated table names from the db file
 	all_softmax_distances = readColumn(db_path = db_path, table_name = TABLE_NAME_DISTANCES_USED, column_name = "softmax_distance")
 	all_cumulative_table_names = readColumn(db_path = db_path, table_name = TABLE_NAME_DISTANCES_USED, column_name = "table_name")
@@ -288,6 +341,7 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], softmax_di
 
 		# Add the current dimension estimate to the dictionary
 		dimension_results[row_index] = dimension_estimate
+	'''
 	
 	# Return the results
 	return dimension_results
@@ -296,7 +350,7 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], softmax_di
 ##########################################################################
 ### Define functions for visualizing the pointwise dimension estimates ###
 ##########################################################################
-def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], min_softmax_distance:Any, max_softmax_distance:Any, min_percent_variance:Any = 0,
+def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_index:int, min_softmax_distance:Any, max_softmax_distance:Any, min_percent_variance:Any = 0,
 								 max_percent_variance:Any = 100, used_engine:str = "matplotlib", show_flag:bool = True, save_flag:bool = False):
 	# Generate a plot of the estimated dimension for the given point
 	# Verify that the provided db file is a valid dimension database
@@ -309,6 +363,9 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], min_soft
 	n_distances = read_row[4]
 
 	# Verify the other inputs
+	# Row index (i.e. point to plot)
+	assert type(row_index) == int, "plotDimensionEstimateOfPoint: Provided value for 'row_index' must be an int object"
+	assert 0 <= row_index and row_index < n_rows, "plotDimensionEstimateOfPoint: Provided value for 'row_index' must be non-negative and less the number of rows from the database (in this case " + str(n_rows) + ")"
 	# Softmax distance and percent variance bounds
 	assert isNumeric(min_softmax_distance, include_numpy_flag = True) == True, "plotDimensionEstimateOfPoint: Provided value for 'min_softmax_distance' must be numeric"
 	assert isNumeric(max_softmax_distance, include_numpy_flag = True) == True, "plotDimensionEstimateOfPoint: Provided value for 'max_softmax_distance' must be numeric"
@@ -320,10 +377,14 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], min_soft
 	assert 0 <= min_percent_variance and min_percent_variance <= 100, "plotDimensionEstimateOfPoint: Provided value for 'min_percent_variance' must be >= 0 and <= 100"
 	assert 0 <= max_percent_variance and max_percent_variance <= 100, "plotDimensionEstimateOfPoint: Provided value for 'max_percent_variance' must be >= 0 and <= 100"
 	assert min_percent_variance <= max_percent_variance, "plotDimensionEstimateOfPoint: Provided value for 'min_percent_variance' must be less than or equal to value for 'max_percent_variance'"
+	# Plot options
+	assert used_engine in ["matplotlib", "plotly"], "plotDimensionEstimateOfPoint: Provided value for 'used_engine' must be 'matplotlib' or 'plotly'"
+	assert type(show_flag) == bool, "plotDimensionEstimateOfPoint: Provided value for 'show_flag' must be a bool object"
+	assert type(save_flag) == bool, "plotDimensionEstimateOfPoint: Provided value for 'save_flag' must be a bool object"
 
 	# Make sure the softmax distance bounds are valid given the contents of the db file
-	assert read_row[2] <= min_percent_variance and min_percent_variance <= red_row[3], "plotDimensionEstimateOfPoint: Provided value for 'min_softmax_distance' must fall in the range given by the db file (in this case " + str(read_row[2]) + " to " + str(read_row[3]) + ")"
-	assert read_row[2] <= max_percent_variance and max_percent_variance <= red_row[3], "plotDimensionEstimateOfPoint: Provided value for 'max_softmax_distance' must fall in the range given by the db file (in this case " + str(read_row[2]) + " to " + str(read_row[3]) + ")"
+	assert read_row[2] <= min_softmax_distance and min_softmax_distance <= read_row[3], "plotDimensionEstimateOfPoint: Provided value for 'min_softmax_distance' must fall in the range given by the db file (in this case " + str(read_row[2]) + " to " + str(read_row[3]) + ")"
+	assert read_row[2] <= max_softmax_distance and max_softmax_distance <= read_row[3], "plotDimensionEstimateOfPoint: Provided value for 'max_softmax_distance' must fall in the range given by the db file (in this case " + str(read_row[2]) + " to " + str(read_row[3]) + ")"
 
 	# Make sure at least one of the bounds is non-trivial
 	assert min_softmax_distance < max_softmax_distance or min_percent_variance < max_percent_variance, "plotDimensionEstimateOfPoint: At least one of 'min_softmax_distance' < 'max_softmax_distance' or 'min_percent_variance' < 'max_percent_variance' must be True"
@@ -331,13 +392,44 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], min_soft
 	# Handle the various cases
 	if min_softmax_distance == max_softmax_distance:
 		# Create a 2D plot with fixed softmax distance
-		pass
+		# Generate the x-values and y-values for this plot
+		x_values = [min_percent_variance + (max_percent_variance - min_percent_variance) * index / 100 for index in range(101)]
+		y_values = [estimatePointwiseDimension(db_path = db_path, softmax_distance = min_softmax_distance, percent_variance = percent_variance, needed_indices = [row_index])[row_index] for percent_variance in x_values]
+
+		plt.figure(figsize = (10, 8))
+		plt.plot(x_values, y_values)
+		plt.title("Estimated Dimension As A Function Of Cumulative Percent Variance (With Softmax Distance Of " + str(min_softmax_distance) + ")")
+		plt.xlabel("cumulative percent variance")
+		plt.ylabel("estimated dimension")
+		plt.show()
 	elif min_percent_variance == max_percent_variance:
 		# Create a 2D plot with fixed percent variance
-		pass
+		# Generate the x-values and y-values for this plot
+		x_values = [min_softmax_distance + (max_softmax_distance - min_softmax_distance) * index / 100 for index in range(101)]
+		y_values = [estimatePointwiseDimension(db_path = db_path, softmax_distance = softmax_distance, percent_variance = min_percent_variance, needed_indices = [row_index])[row_index] for softmax_distance in x_values]
+
+		plt.figure(figsize = (10, 8))
+		plt.plot(x_values, y_values)
+		plt.title("Estimated Dimension As A Function Of Softmax Distance (With Cumulative Percent Variance Of " + str(min_percent_variance) + ")")
+		plt.xlabel("softmax distance")
+		plt.ylabel("estimated dimension")
+		plt.show()
 	else:
 		# Create a 3D plot varying over both variables
-		pass
+		x_values = [min_softmax_distance + (max_softmax_distance - min_softmax_distance) * index / 20 for index in range(21)]
+		y_values = [min_percent_variance + (max_percent_variance - min_percent_variance) * index / 20 for index in range(21)]
+		z_values = []
+		for row_index in range(len(y_values)):
+			new_row = []
+			for col_index in range(len(x_values)):
+				new_row.append(estimatePointwiseDimension(db_path = db_path, softmax_distance = x_values[col_index], percent_variance = y_values[row_index], needed_indices = [row_index])[row_index])
+			z_values.append(new_row)
+
+		fig = go.Figure()
+		fig.add_trace(go.Surface(x = x_values, y = y_values, z = z_values))
+		fig.update_layout(title = "Estimated Dimension As A Function Of Softmax Distance And Cumulative Percent Variance",
+						  scene = {"xaxis_title": "softmax distance", "yaxis_title": "cumulative percent variance", "zaxis_title": "estimated dimension"})
+		fig.show()
 '''
 ###########################################################################################
 ### Define functions for generating visualizations of the pointwise dimension estimates ###
