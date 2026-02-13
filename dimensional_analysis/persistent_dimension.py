@@ -20,9 +20,10 @@ from type_helper import isNumeric
 # External modules
 from os import remove
 from os.path import exists
+from math import sqrt
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
-from numpy import cumsum, mean, ndarray, zeros
+from numpy import array, cumsum, mean, ndarray, zeros
 from numpy.linalg import norm
 from pathlib import PosixPath, WindowsPath
 import plotly.graph_objects as go
@@ -303,7 +304,7 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], softmax_di
 ### Define functions for visualizing the pointwise dimension estimates ###
 ##########################################################################
 def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_index:int, min_softmax_distance:Any, max_softmax_distance:Any, min_percent_variance:Any = 0,
-								 max_percent_variance:Any = 100, n_samples:int = 100, used_engine:str = "matplotlib", round_flag:bool = True, show_flag:bool = True, save_flag:bool = False):
+								 max_percent_variance:Any = 100, n_samples:int = 100, used_engine:str = "matplotlib", round_flag:bool = False, show_flag:bool = True, save_flag:bool = False):
 	# Generate a plot of the estimated dimension for the given point
 	# Verify that the provided db file is a valid dimension database
 	verifyDimensionDatabase(db_path = db_path)
@@ -344,6 +345,15 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 	# Make sure at least one of the bounds is non-trivial
 	assert min_softmax_distance < max_softmax_distance or min_percent_variance < max_percent_variance, "plotDimensionEstimateOfPoint: At least one of 'min_softmax_distance' < 'max_softmax_distance' or 'min_percent_variance' < 'max_percent_variance' must be True"
 
+	# Get a path to which the image should be saved and make sure cancel wasn't clicked (if needed)
+	if save_flag == True:
+		if used_engine == "matplotlib":
+			image_path = askSaveFilename(allowed_extensions = ["png"])
+			assert image_path is not None, "plotDimensionEstimateOfPoint: Unable to save matplotlib figure because cancel button was clicked"
+		else:
+			image_path = askSaveFilename(allowed_extensions = ["html"])
+			assert image_path is not None, "plotDimensionEstimateOfPoint: Unable to save plotly figure because cancel button was clicked"
+
 	# Handle the various cases
 	if min_softmax_distance == max_softmax_distance:
 		# Create a 2D plot with fixed softmax distance
@@ -362,7 +372,7 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			y_values.append(round(dimension_estimate) if round_flag == True else dimension_estimate)
 
 		# Define shared plot information
-		plot_title = "Estimated Dimension As A Function Of Cumulative Percent Variance (With Softmax Distance Of " + str(min_softmax_distance) + ")"
+		plot_title = "(Rounded) " if round_flag == True else "" + "Estimated Dimension As A Function Of Cumulative Percent Variance (With Softmax Distance Of " + str(min_softmax_distance) + ")"
 		x_label = "cumulative percent variance"
 		y_label = "estimated dimension"
 
@@ -383,10 +393,6 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 				plt.show()
 			# Save the figure (if needed)
 			if save_flag == True:
-				# Get a path to which the image should be saved and make sure cancel wasn't clicked
-				image_path = askSaveFilename(allowed_extensions = ["png"])
-				assert image_path is not None, "plotDimensionEstimateOfPoint: Unable to save matplotlib figure because cancel button was clicked"
-				# Save the image to this location
 				plt.savefig(image_path)
 		else:
 			# Handle the case of using plotly
@@ -403,10 +409,6 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 				fig.show()
 			# Save the figure (if needed)
 			if save_flag == True:
-				# Get a path to which the image should be saved and make sure cancel wasn't clicked
-				image_path = askSaveFilename(allowed_extensions = ["html"])
-				assert image_path is not None, "plotDimensionEstimateOfPoint: Unable to save plotly figure because cancel button was clicked"
-				# Save the image to this location
 				fig.write_html(image_path)
 	elif min_percent_variance == max_percent_variance:
 		# Create a 2D plot with fixed percent variance
@@ -425,7 +427,7 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			y_values.append(round(dimension_estimate) if round_flag == True else dimension_estimate)
 
 		# Define shared plot information
-		plot_title = "Estimated Dimension As A Function Of Softmax Distance (With Cumulative Percent Variance Of " + str(min_percent_variance) + ")"
+		plot_title = "(Rounded) " if round_flag == True else "" + "Estimated Dimension As A Function Of Softmax Distance (With Cumulative Percent Variance Of " + str(min_percent_variance) + ")"
 		x_label = "softmax distance"
 		y_label = "estimated dimension"
 
@@ -446,10 +448,6 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 				plt.show()
 			# Save the figure (if needed)
 			if save_flag == True:
-				# Get a path to which the image should be saved and make sure cancel wasn't clicked
-				image_path = askSaveFilename(allowed_extensions = ["png"])
-				assert image_path is not None, "plotDimensionEstimateOfPoint: Unable to save matplotlib figure because cancel button was clicked"
-				# Save the image to this location
 				plt.savefig(image_path)
 		else:
 			# Handle the case of using plotly
@@ -466,27 +464,112 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 				fig.show()
 			# Save the figure (if needed)
 			if save_flag == True:
-				# Get a path to which the image should be saved and make sure cancel wasn't clicked
-				image_path = askSaveFilename(allowed_extensions = ["html"])
-				assert image_path is not None, "plotDimensionEstimateOfPoint: Unable to save plotly figure because cancel button was clicked"
-				# Save the image to this location
 				fig.write_html(image_path)
 	else:
-		# Create a 3D plot varying over both variables
-		x_values = [min_softmax_distance + (max_softmax_distance - min_softmax_distance) * index / 20 for index in range(21)]
-		y_values = [min_percent_variance + (max_percent_variance - min_percent_variance) * index / 20 for index in range(21)]
-		z_values = []
-		for row_index in range(len(y_values)):
-			new_row = []
-			for col_index in range(len(x_values)):
-				new_row.append(estimatePointwiseDimension(db_path = db_path, softmax_distance = x_values[col_index], percent_variance = y_values[row_index], needed_indices = [row_index])[row_index])
-			z_values.append(new_row)
+		# Compute the coverage ratios for softmax distance and percent variance
+		softmax_ratio = (max_softmax_distance - min_softmax_distance) / (read_row[3] - read_row[2])
+		percent_ratio = (max_percent_variance - min_percent_variance) / 100
 
-		fig = go.Figure()
-		fig.add_trace(go.Surface(x = x_values, y = y_values, z = z_values))
-		fig.update_layout(title = "Estimated Dimension As A Function Of Softmax Distance And Cumulative Percent Variance",
-						  scene = {"xaxis_title": "softmax distance", "yaxis_title": "cumulative percent variance", "zaxis_title": "estimated dimension"})
-		fig.show()
+		# Compute the corresponding numbers of softmax distance and percent variance samples
+		n_samples_softmax = 1 + int(sqrt(n_samples * softmax_ratio / percent_ratio))
+		n_samples_percent = 1 + int(sqrt(n_samples * percent_ratio / softmax_ratio))
+
+		# Adjust the number of samples to make sure they are both at least 2
+		if n_samples_softmax == 1:
+			n_samples_softmax = 2
+		if n_samples_percent == 1:
+			n_samples_percent = 2
+
+		# Initialize the lists of needed x-values, y-values and z-values
+		x_values = []
+		y_values = []
+		z_values = []
+
+		# Create arrays containing the needed values depending on the render engine used
+		if used_engine == "matplotlib":
+			# Create arrays for x-values, y-values and z-values
+			for percent_index in range(n_samples_percent):
+				# Create the new rows for the array
+				new_row_x = []
+				new_row_y = []
+				new_row_z = []
+				# Fill in the values for the new rows
+				for softmax_index in range(n_samples_softmax):
+					# Compute the new x-value, y-value and z-value
+					softmax_distance = min_softmax_distance + (max_softmax_distance - min_softmax_distance) * softmax_index / (n_samples_softmax - 1)
+					percent_variance = min_percent_variance + (max_percent_variance - min_percent_variance) * percent_index / (n_samples_percent - 1)
+					dimension_estimate = estimatePointwiseDimension(db_path = db_path,
+																	softmax_distance = softmax_distance,
+																	percent_variance = percent_variance,
+																	needed_indices = [row_index])[row_index]
+					# Append to the needed lists
+					new_row_x.append(softmax_distance)
+					new_row_y.append(percent_variance)
+					new_row_z.append(round(dimension_estimate) if round_flag == True else dimension_estimate)
+				# Add the new rows to the arrays
+				x_values.append(new_row_x)
+				y_values.append(new_row_y)
+				z_values.append(new_row_z)
+			# Convert the z-values to a numpy array
+			z_values = array(z_values, dtype = float)
+		else:
+			# Create lists for the x-values and y-values
+			x_values = [min_softmax_distance + (max_softmax_distance - min_softmax_distance) * softmax_index / (n_samples_softmax - 1) for softmax_index in range(n_samples_softmax)]
+			y_values = [min_percent_variance + (max_percent_variance - min_percent_variance) * percent_index / (n_samples_percent - 1) for percent_index in range(n_samples_percent)]
+			# Create an array for the z-values
+			z_values = []
+			for percent_index in range(n_samples_percent):
+				# Create a new row for the array
+				new_row = []
+				# Fill in the values for the new row
+				for softmax_index in range(n_samples_softmax):
+					dimension_estimate = estimatePointwiseDimension(db_path = db_path,
+																	softmax_distance = x_values[softmax_index],
+																	percent_variance = y_values[percent_index],
+																	needed_indices = [row_index])[row_index]
+					new_row.append(round(dimension_estimate) if round_flag == True else dimension_estimate)
+				# Add the new row to the array
+				z_values.append(new_row)
+
+		# Define shared plot information
+		plot_title = "(Rounded) " if round_flag == True else "" + "Estimated Dimension As A Function Of Softmax Distance And Cumulative Percent Variance"
+		x_label = "softmax distance"
+		y_label = "cumulative percent variance"
+		z_label = "estimated dimension"
+
+		# Plot the needed information
+		if used_engine == "matplotlib":
+			# Handle the case of using matplotlib
+			# Create the figure
+			fig = plt.figure(figsize = (10, 8))
+			ax = fig.add_subplot(111, projection = "3d")
+			# Add the needed traces
+			ax.plot_surface(x_values, y_values, z_values, edgecolor = "none")
+			# Format the figure
+			plt.title(plot_title)
+			ax.set_xlabel(x_label)
+			ax.set_ylabel(y_label)
+			ax.set_zlabel(z_label)
+			# Show the figure (if needed)
+			if show_flag == True:
+				plt.show()
+			# Save the figure (if needed)
+			if save_flag == True:
+				plt.savefig(image_path)
+		else:
+			# Handle the case of using plotly
+			# Create the figure
+			fig = go.Figure()
+			# Add the needed traces
+			fig.add_trace(go.Surface(x = x_values, y = y_values, z = z_values))
+			# Format the figure
+			fig.update_layout(title = plot_title, scene = {"xaxis_title": x_label, "yaxis_title": y_label, "zaxis_title": z_label})
+			# Show the figure (if needed)
+			if show_flag == True:
+				fig.show()
+			# Save the figure (if needed)
+			if save_flag == True:
+				fig.write_html(image_path)
 '''
 ###########################################################################################
 ### Define functions for generating visualizations of the pointwise dimension estimates ###
