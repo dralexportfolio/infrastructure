@@ -347,8 +347,18 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 	if min_softmax_distance == max_softmax_distance:
 		# Create a 2D plot with fixed softmax distance
 		# Generate the x-values and y-values for this plot
-		x_values = [min_percent_variance + (max_percent_variance - min_percent_variance) * index / 100 for index in range(101)]
-		y_values = [estimatePointwiseDimension(db_path = db_path, softmax_distance = min_softmax_distance, percent_variance = percent_variance, needed_indices = [row_index])[row_index] for percent_variance in x_values]
+		x_values = []
+		y_values = []
+		for sample_index in range(n_samples):
+			# Compute the percent variance and corresponding dimension estimate
+			percent_variance = min_percent_variance + (max_percent_variance - min_percent_variance) * sample_index / (n_samples - 1)
+			dimension_estimate = estimatePointwiseDimension(db_path = db_path,
+															softmax_distance = min_softmax_distance,
+															percent_variance = percent_variance,
+															needed_indices = [row_index])[row_index]
+			# Append to the needed lists
+			x_values.append(percent_variance)
+			y_values.append(dimension_estimate)
 
 		plt.figure(figsize = (10, 8))
 		plt.plot(x_values, y_values)
@@ -359,8 +369,18 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 	elif min_percent_variance == max_percent_variance:
 		# Create a 2D plot with fixed percent variance
 		# Generate the x-values and y-values for this plot
-		x_values = [min_softmax_distance + (max_softmax_distance - min_softmax_distance) * index / 100 for index in range(101)]
-		y_values = [estimatePointwiseDimension(db_path = db_path, softmax_distance = softmax_distance, percent_variance = min_percent_variance, needed_indices = [row_index])[row_index] for softmax_distance in x_values]
+		x_values = []
+		y_values = []
+		for sample_index in range(n_samples):
+			# Compute the percent variance and corresponding dimension estimate
+			softmax_distance = min_softmax_distance + (max_softmax_distance - min_softmax_distance) * sample_index / (n_samples - 1)
+			dimension_estimate = estimatePointwiseDimension(db_path = db_path,
+															softmax_distance = softmax_distance,
+															percent_variance = min_percent_variance,
+															needed_indices = [row_index])[row_index]
+			# Append to the needed lists
+			x_values.append(softmax_distance)
+			y_values.append(dimension_estimate)
 
 		plt.figure(figsize = (10, 8))
 		plt.plot(x_values, y_values)
