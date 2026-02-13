@@ -372,7 +372,7 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			y_values.append(round(dimension_estimate) if round_flag == True else dimension_estimate)
 
 		# Define shared plot information
-		plot_title = "(Rounded) " if round_flag == True else "" + "Estimated Dimension As A Function Of Cumulative Percent Variance (With Softmax Distance Of " + str(min_softmax_distance) + ")"
+		plot_title = ("(Rounded) " if round_flag == True else "") + "Estimated Dimension As A Function Of Cumulative Percent Variance (With Softmax Distance Of " + str(min_softmax_distance) + ")"
 		x_label = "cumulative percent variance"
 		y_label = "estimated dimension"
 
@@ -427,7 +427,7 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			y_values.append(round(dimension_estimate) if round_flag == True else dimension_estimate)
 
 		# Define shared plot information
-		plot_title = "(Rounded) " if round_flag == True else "" + "Estimated Dimension As A Function Of Softmax Distance (With Cumulative Percent Variance Of " + str(min_percent_variance) + "%)"
+		plot_title = ("(Rounded) " if round_flag == True else "") + "Estimated Dimension As A Function Of Softmax Distance (With Cumulative Percent Variance Of " + str(min_percent_variance) + "%)"
 		x_label = "softmax distance"
 		y_label = "estimated dimension"
 
@@ -532,7 +532,7 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 				z_values.append(new_row)
 
 		# Define shared plot information
-		plot_title = "(Rounded) " if round_flag == True else "" + "Estimated Dimension As A Function Of Softmax Distance And Cumulative Percent Variance"
+		plot_title = ("(Rounded) " if round_flag == True else "") + "Estimated Dimension As A Function Of Softmax Distance And Cumulative Percent Variance"
 		x_label = "softmax distance"
 		y_label = "cumulative percent variance"
 		z_label = "estimated dimension"
