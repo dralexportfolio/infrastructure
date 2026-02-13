@@ -13,7 +13,6 @@ path.insert(0, str(infrastructure_folder.joinpath("common_needs")))
 # Internal modules
 from color_helper import customSpectrum
 from dimension_reduction import performPCA
-from spline_helper import LinearSpline
 from sqlite3_helper import addTable, appendRow, getColumnNames, getColumnTypes, getExistingTables, getRowCount, readColumn, readRow, replaceRow
 from tkinter_helper import askSaveFilename
 from type_helper import isNumeric
@@ -295,53 +294,6 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], softmax_di
 
 					# Combine to get the needed dimension estimate
 					dimension_results[row_index] = lower_softmax_weight * lower_dimension_estimate + upper_softmax_weight * upper_dimension_estimate
-
-	'''
-	# Get the softmax distances and associated table names from the db file
-	all_softmax_distances = readColumn(db_path = db_path, table_name = TABLE_NAME_DISTANCES_USED, column_name = "softmax_distance")
-	all_cumulative_table_names = readColumn(db_path = db_path, table_name = TABLE_NAME_DISTANCES_USED, column_name = "table_name")
-
-	# Determine which softmax distances to use from the table and associated weights
-	if n_distances == 1:
-		n_tables_used = 1
-		needed_weights = [1]
-		needed_cumulative_table_names = all_cumulative_table_names
-	else:
-		n_tables_used = 2
-		for distance_index in range(n_distances - 1):
-			softmax_distance_1 = all_softmax_distances[distance_index]
-			softmax_distance_2 = all_softmax_distances[distance_index + 1]
-			if softmax_distance_1 <= softmax_distance and softmax_distance <= softmax_distance_2:
-				denominator = softmax_distance_2 - softmax_distance_1
-				needed_weights = [(softmax_distance_2 - softmax_distance) / denominator, (softmax_distance - softmax_distance_1) / denominator]
-				needed_cumulative_table_names = [all_cumulative_table_names[distance_index], all_cumulative_table_names[distance_index + 1]]
-				break
-
-	# Create the y-values for the linear splines
-	y_values = [index for index in range(n_cols + 1)]
-	
-	# Initialize the dictionary of results
-	dimension_results = {}
-	
-	# Compute the dimension estimates for each point
-	for row_index in needed_indices:
-		# Initialize the current dimension estimate
-		dimension_estimate = 0
-
-		# Take the weighted mean of values from the needed tables
-		for table_index in range(n_tables_used):
-			# Read the needed row from the db file as the x-values
-			x_values = readRow(db_path = db_path, table_name = needed_cumulative_table_names[table_index], row_index = row_index)
-		
-			# Create a linear spline using these x-values and y-values
-			linear_spline = LinearSpline(x_values = x_values, y_values = y_values)
-
-			# Update the dimension estimate according to the given weight
-			dimension_estimate += needed_weights[table_index] * linear_spline.evaluate(x_value = percent_variance)
-
-		# Add the current dimension estimate to the dictionary
-		dimension_results[row_index] = dimension_estimate
-	'''
 	
 	# Return the results
 	return dimension_results
@@ -351,7 +303,7 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], softmax_di
 ### Define functions for visualizing the pointwise dimension estimates ###
 ##########################################################################
 def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_index:int, min_softmax_distance:Any, max_softmax_distance:Any, min_percent_variance:Any = 0,
-								 max_percent_variance:Any = 100, used_engine:str = "matplotlib", show_flag:bool = True, save_flag:bool = False):
+								 max_percent_variance:Any = 100, n_samples:int = 100, used_engine:str = "matplotlib", show_flag:bool = True, save_flag:bool = False):
 	# Generate a plot of the estimated dimension for the given point
 	# Verify that the provided db file is a valid dimension database
 	verifyDimensionDatabase(db_path = db_path)
@@ -378,6 +330,8 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 	assert 0 <= max_percent_variance and max_percent_variance <= 100, "plotDimensionEstimateOfPoint: Provided value for 'max_percent_variance' must be >= 0 and <= 100"
 	assert min_percent_variance <= max_percent_variance, "plotDimensionEstimateOfPoint: Provided value for 'min_percent_variance' must be less than or equal to value for 'max_percent_variance'"
 	# Plot options
+	assert type(n_samples) == int, "plotDimensionEstimateOfPoint: Provided value for 'n_samples' must be a int object"
+	assert 10 <= n_samples and n_samples <= 1000, "plotDimensionEstimateOfPoint: Provided value for 'n_samples' must be >= 10 and <= 1000"
 	assert used_engine in ["matplotlib", "plotly"], "plotDimensionEstimateOfPoint: Provided value for 'used_engine' must be 'matplotlib' or 'plotly'"
 	assert type(show_flag) == bool, "plotDimensionEstimateOfPoint: Provided value for 'show_flag' must be a bool object"
 	assert type(save_flag) == bool, "plotDimensionEstimateOfPoint: Provided value for 'save_flag' must be a bool object"
