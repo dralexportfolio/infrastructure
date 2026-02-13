@@ -303,7 +303,7 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], softmax_di
 ### Define functions for visualizing the pointwise dimension estimates ###
 ##########################################################################
 def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_index:int, min_softmax_distance:Any, max_softmax_distance:Any, min_percent_variance:Any = 0,
-								 max_percent_variance:Any = 100, n_samples:int = 100, used_engine:str = "matplotlib", show_flag:bool = True, save_flag:bool = False):
+								 max_percent_variance:Any = 100, n_samples:int = 100, used_engine:str = "matplotlib", round_flag:bool = True, show_flag:bool = True, save_flag:bool = False):
 	# Generate a plot of the estimated dimension for the given point
 	# Verify that the provided db file is a valid dimension database
 	verifyDimensionDatabase(db_path = db_path)
@@ -333,6 +333,7 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 	assert type(n_samples) == int, "plotDimensionEstimateOfPoint: Provided value for 'n_samples' must be a int object"
 	assert 10 <= n_samples and n_samples <= 1000, "plotDimensionEstimateOfPoint: Provided value for 'n_samples' must be >= 10 and <= 1000"
 	assert used_engine in ["matplotlib", "plotly"], "plotDimensionEstimateOfPoint: Provided value for 'used_engine' must be 'matplotlib' or 'plotly'"
+	assert type(round_flag) == bool, "plotDimensionEstimateOfPoint: Provided value for 'round_flag' must be a bool object"
 	assert type(show_flag) == bool, "plotDimensionEstimateOfPoint: Provided value for 'show_flag' must be a bool object"
 	assert type(save_flag) == bool, "plotDimensionEstimateOfPoint: Provided value for 'save_flag' must be a bool object"
 
@@ -358,14 +359,55 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 															needed_indices = [row_index])[row_index]
 			# Append to the needed lists
 			x_values.append(percent_variance)
-			y_values.append(dimension_estimate)
+			y_values.append(round(dimension_estimate) if round_flag == True else dimension_estimate)
 
-		plt.figure(figsize = (10, 8))
-		plt.plot(x_values, y_values)
-		plt.title("Estimated Dimension As A Function Of Cumulative Percent Variance (With Softmax Distance Of " + str(min_softmax_distance) + ")")
-		plt.xlabel("cumulative percent variance")
-		plt.ylabel("estimated dimension")
-		plt.show()
+		# Define shared plot information
+		plot_title = "Estimated Dimension As A Function Of Cumulative Percent Variance (With Softmax Distance Of " + str(min_softmax_distance) + ")"
+		x_label = "cumulative percent variance"
+		y_label = "estimated dimension"
+
+		# Plot the needed information
+		if used_engine == "matplotlib":
+			# Handle the case of using matplotlib
+			# Create the figure
+			plt.figure(figsize = (10, 8))
+			# Add the needed traces
+			plt.plot(x_values, y_values)
+			# Format the figure
+			plt.title(plot_title)
+			plt.xlabel(x_label)
+			plt.ylabel(y_label)
+			plt.grid()
+			# Show the figure (if needed)
+			if show_flag == True:
+				plt.show()
+			# Save the figure (if needed)
+			if save_flag == True:
+				# Get a path to which the image should be saved and make sure cancel wasn't clicked
+				image_path = askSaveFilename(allowed_extensions = ["png"])
+				assert image_path is not None, "plotDimensionEstimateOfPoint: Unable to save matplotlib figure because cancel button was clicked"
+				# Save the image to this location
+				plt.savefig(image_path)
+		else:
+			# Handle the case of using plotly
+			# Create the figure
+			fig = go.Figure()
+			# Add the needed traces
+			fig.add_trace(go.Scatter(x = x_values, y = y_values, showlegend = False))
+			# Format the figure
+			fig.update_layout(title = plot_title)
+			fig.update_xaxes(title = x_label)
+			fig.update_yaxes(title = y_label)
+			# Show the figure (if needed)
+			if show_flag == True:
+				fig.show()
+			# Save the figure (if needed)
+			if save_flag == True:
+				# Get a path to which the image should be saved and make sure cancel wasn't clicked
+				image_path = askSaveFilename(allowed_extensions = ["html"])
+				assert image_path is not None, "plotDimensionEstimateOfPoint: Unable to save plotly figure because cancel button was clicked"
+				# Save the image to this location
+				fig.write_html(image_path)
 	elif min_percent_variance == max_percent_variance:
 		# Create a 2D plot with fixed percent variance
 		# Generate the x-values and y-values for this plot
@@ -380,14 +422,55 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 															needed_indices = [row_index])[row_index]
 			# Append to the needed lists
 			x_values.append(softmax_distance)
-			y_values.append(dimension_estimate)
+			y_values.append(round(dimension_estimate) if round_flag == True else dimension_estimate)
 
-		plt.figure(figsize = (10, 8))
-		plt.plot(x_values, y_values)
-		plt.title("Estimated Dimension As A Function Of Softmax Distance (With Cumulative Percent Variance Of " + str(min_percent_variance) + ")")
-		plt.xlabel("softmax distance")
-		plt.ylabel("estimated dimension")
-		plt.show()
+		# Define shared plot information
+		plot_title = "Estimated Dimension As A Function Of Softmax Distance (With Cumulative Percent Variance Of " + str(min_percent_variance) + ")"
+		x_label = "softmax distance"
+		y_label = "estimated dimension"
+
+		# Plot the needed information
+		if used_engine == "matplotlib":
+			# Handle the case of using matplotlib
+			# Create the figure
+			plt.figure(figsize = (10, 8))
+			# Add the needed traces
+			plt.plot(x_values, y_values)
+			# Format the figure
+			plt.title(plot_title)
+			plt.xlabel(x_label)
+			plt.ylabel(y_label)
+			plt.grid()
+			# Show the figure (if needed)
+			if show_flag == True:
+				plt.show()
+			# Save the figure (if needed)
+			if save_flag == True:
+				# Get a path to which the image should be saved and make sure cancel wasn't clicked
+				image_path = askSaveFilename(allowed_extensions = ["png"])
+				assert image_path is not None, "plotDimensionEstimateOfPoint: Unable to save matplotlib figure because cancel button was clicked"
+				# Save the image to this location
+				plt.savefig(image_path)
+		else:
+			# Handle the case of using plotly
+			# Create the figure
+			fig = go.Figure()
+			# Add the needed traces
+			fig.add_trace(go.Scatter(x = x_values, y = y_values, showlegend = False))
+			# Format the figure
+			fig.update_layout(title = plot_title)
+			fig.update_xaxes(title = x_label)
+			fig.update_yaxes(title = y_label)
+			# Show the figure (if needed)
+			if show_flag == True:
+				fig.show()
+			# Save the figure (if needed)
+			if save_flag == True:
+				# Get a path to which the image should be saved and make sure cancel wasn't clicked
+				image_path = askSaveFilename(allowed_extensions = ["html"])
+				assert image_path is not None, "plotDimensionEstimateOfPoint: Unable to save plotly figure because cancel button was clicked"
+				# Save the image to this location
+				fig.write_html(image_path)
 	else:
 		# Create a 3D plot varying over both variables
 		x_values = [min_softmax_distance + (max_softmax_distance - min_softmax_distance) * index / 20 for index in range(21)]
