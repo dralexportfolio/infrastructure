@@ -3,7 +3,7 @@
 ##########################################
 # External modules
 from numpy import argsort, matmul, mean, ndarray, ones, std, zeros
-from numpy import min as np_max
+from numpy import max as np_max
 from numpy import min as np_min
 from numpy.linalg import svd
 from scipy.sparse import diags
