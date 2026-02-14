@@ -518,6 +518,8 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			# Convert the z-values to a numpy array
 			z_values = array(z_values, dtype = float)
 		else:
+			# Get a color scale usable by plotly
+			color_scale = [[index / 100, customSpectrum(parameter = index / 100).asStringTuple()] for index in range(101)]
 			# Create an array for the x-values
 			x_values = zeros(n_samples_softmax, dtype = float)
 			for softmax_index in range(n_samples_softmax):
@@ -583,7 +585,10 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 									 hovertemplate = ("<b>Softmax Distance:</b> %{customdata[0]}<br>" +
 									 				  "<b>Percent Variance:</b> %{customdata[1]}<br>" +
 									   			      "<b>Estimated Dimension:</b> %{customdata[2]}<br>" +
-									   			   	  "<extra></extra>")))
+									   			   	  "<extra></extra>"),
+									 colorscale = color_scale,
+									 cmin = 0,
+									 cmax = n_cols))
 			# Format the figure
 			fig.update_layout(title = plot_title,
 							  scene = {"xaxis_title": x_label,
