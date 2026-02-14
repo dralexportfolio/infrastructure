@@ -486,16 +486,15 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 		if n_samples_percent == 1:
 			n_samples_percent = 2
 
-		# Initialize the lists of needed x-values, y-values and z-values
-		x_values = []
-		y_values = []
-		z_values = []
-
 		# Create arrays containing the needed values depending on the render engine used
 		if used_engine == "matplotlib":
+			# Initialize the lists of needed x-values, y-values and z-values
+			x_values = []
+			y_values = []
+			z_values = []
 			# Create arrays for x-values, y-values and z-values
 			for percent_index in range(n_samples_percent):
-				# Create the new rows for the array
+				# Create the new rows for the lists of lists
 				new_row_x = []
 				new_row_y = []
 				new_row_z = []
@@ -519,29 +518,32 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			# Convert the z-values to a numpy array
 			z_values = array(z_values, dtype = float)
 		else:
-			# Create lists for the x-values and y-values
-			x_values = [min_softmax_distance + (max_softmax_distance - min_softmax_distance) * softmax_index / (n_samples_softmax - 1) for softmax_index in range(n_samples_softmax)]
-			y_values = [min_percent_variance + (max_percent_variance - min_percent_variance) * percent_index / (n_samples_percent - 1) for percent_index in range(n_samples_percent)]
-			# Create an array for the z-values as well as associated point labels
-			z_values = []
-			point_labels = zeros((n_samples_percent, n_samples_softmax, 3), dtype = float)
+			# Create an array for the x-values
+			x_values = zeros(n_samples_softmax, dtype = float)
+			for softmax_index in range(n_samples_softmax):
+				x_values[softmax_index] = min_softmax_distance + (max_softmax_distance - min_softmax_distance) * softmax_index / (n_samples_softmax - 1)
+			# Create an array for the y-values
+			y_values = zeros(n_samples_percent, dtype = float)
 			for percent_index in range(n_samples_percent):
-				# Create a new row for the array
-				new_row = []
-				# Fill in the values for the new row
+				y_values[percent_index] = min_percent_variance + (max_percent_variance - min_percent_variance) * percent_index / (n_samples_percent - 1)
+			# Create an array for the z-values as well as associated point labels
+			z_values = zeros((n_samples_percent, n_samples_softmax), dtype = float)
+			point_labels = zeros((n_samples_softmax, n_samples_percent, 3), dtype = float)
+			for percent_index in range(n_samples_percent):
 				for softmax_index in range(n_samples_softmax):
-					# Fill in the information for the z-values
+					# Fill in the information for the z-value
 					dimension_estimate = estimatePointwiseDimension(db_path = db_path,
 																	softmax_distance = x_values[softmax_index],
 																	percent_variance = y_values[percent_index],
 																	needed_indices = [row_index])[row_index]
-					new_row.append(round(dimension_estimate) if round_flag == True else dimension_estimate)
+					z_values[percent_index, softmax_index] = round(dimension_estimate) if round_flag == True else dimension_estimate
 					# Add in the information for the point labels
-					point_labels[percent_index, softmax_index, 0] = x_values[softmax_index]
-					point_labels[percent_index, softmax_index, 1] = y_values[percent_index]
-					point_labels[percent_index, softmax_index, 2] = new_row[-1]
-				# Add the new row to the array
-				z_values.append(new_row)
+					point_labels[softmax_index, percent_index, 0] = round(x_values[softmax_index], 3)
+					point_labels[softmax_index, percent_index, 1] = round(y_values[percent_index], 3)
+					point_labels[softmax_index, percent_index, 2] = round(z_values[percent_index, softmax_index], 3)
+
+			print(z_values.shape)
+			print(point_labels.shape)
 
 		# Define shared plot information
 		plot_title = ("(Rounded) " if round_flag == True else "") + "Estimated Dimension Of Point " + str(row_index) + " (As Function Of Softmax Distance And Explained Variance)"
@@ -581,10 +583,10 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 									 z = z_values,
 									 showlegend = False,
 									 customdata = point_labels,
-									 hovertemplate = ("<b>Softmax Distance:</b> %{customdata[0]}<br>"
-									 				  "<b>Percent Variance:</b> %{customdata[1]}<br>"
-									   				  "<b>Estimated Dimension:</b> %{customdata[2]}<br>"
-									   				  "<extra></extra>")))
+									 hovertemplate = ("<b>Softmax Distance:</b> %{customdata[0]}<br>" +
+									 				  "<b>Percent Variance:</b> %{customdata[1]}<br>" +
+									   			      "<b>Estimated Dimension:</b> %{customdata[2]}<br>" +
+									   			   	  "<extra></extra>")))
 			# Format the figure
 			fig.update_layout(title = plot_title,
 							  scene = {"xaxis_title": x_label,
@@ -753,8 +755,8 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 									   z = projected_data_array[:, 2],
 									   showlegend = False,
 									   customdata = point_labels,
-									   hovertemplate = ("<b>Index Of Point:</b> %{customdata[0]}<br>"
-									   					"<b>Estimated Dimension:</b> %{customdata[1]}<br>"
+									   hovertemplate = ("<b>Index Of Point:</b> %{customdata[0]}<br>" +
+									   					"<b>Estimated Dimension:</b> %{customdata[1]}<br>" +
 									   					"<extra></extra>"),
 									   mode = "markers",
 									   marker = {"color": dimension_results,
