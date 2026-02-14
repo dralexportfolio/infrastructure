@@ -542,9 +542,6 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 					point_labels[softmax_index, percent_index, 1] = round(y_values[percent_index], 3)
 					point_labels[softmax_index, percent_index, 2] = round(z_values[percent_index, softmax_index], 3)
 
-			print(z_values.shape)
-			print(point_labels.shape)
-
 		# Define shared plot information
 		plot_title = ("(Rounded) " if round_flag == True else "") + "Estimated Dimension Of Point " + str(row_index) + " (As Function Of Softmax Distance And Explained Variance)"
 		x_label = "softmax distance"
