@@ -382,7 +382,8 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			# Create the figure
 			plt.figure(figsize = (10, 8))
 			# Add the needed traces
-			plt.plot(x_values, y_values)
+			plt.plot(x_values,
+					 y_values)
 			# Format the figure
 			plt.title(plot_title)
 			plt.xlabel(x_label)
@@ -399,7 +400,9 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			# Create the figure
 			fig = go.Figure()
 			# Add the needed traces
-			fig.add_trace(go.Scatter(x = x_values, y = y_values, showlegend = False))
+			fig.add_trace(go.Scatter(x = x_values,
+									 y = y_values,
+									 showlegend = False))
 			# Format the figure
 			fig.update_layout(title = plot_title)
 			fig.update_xaxes(title = x_label)
@@ -437,7 +440,8 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			# Create the figure
 			plt.figure(figsize = (10, 8))
 			# Add the needed traces
-			plt.plot(x_values, y_values)
+			plt.plot(x_values,
+					 y_values)
 			# Format the figure
 			plt.title(plot_title)
 			plt.xlabel(x_label)
@@ -454,7 +458,9 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			# Create the figure
 			fig = go.Figure()
 			# Add the needed traces
-			fig.add_trace(go.Scatter(x = x_values, y = y_values, showlegend = False))
+			fig.add_trace(go.Scatter(x = x_values,
+									 y = y_values,
+									 showlegend = False))
 			# Format the figure
 			fig.update_layout(title = plot_title)
 			fig.update_xaxes(title = x_label)
@@ -516,18 +522,24 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			# Create lists for the x-values and y-values
 			x_values = [min_softmax_distance + (max_softmax_distance - min_softmax_distance) * softmax_index / (n_samples_softmax - 1) for softmax_index in range(n_samples_softmax)]
 			y_values = [min_percent_variance + (max_percent_variance - min_percent_variance) * percent_index / (n_samples_percent - 1) for percent_index in range(n_samples_percent)]
-			# Create an array for the z-values
+			# Create an array for the z-values as well as associated point labels
 			z_values = []
+			point_labels = zeros((n_samples_percent, n_samples_softmax, 3), dtype = float)
 			for percent_index in range(n_samples_percent):
 				# Create a new row for the array
 				new_row = []
 				# Fill in the values for the new row
 				for softmax_index in range(n_samples_softmax):
+					# Fill in the information for the z-values
 					dimension_estimate = estimatePointwiseDimension(db_path = db_path,
 																	softmax_distance = x_values[softmax_index],
 																	percent_variance = y_values[percent_index],
 																	needed_indices = [row_index])[row_index]
 					new_row.append(round(dimension_estimate) if round_flag == True else dimension_estimate)
+					# Add in the information for the point labels
+					point_labels[percent_index, softmax_index, 0] = x_values[softmax_index]
+					point_labels[percent_index, softmax_index, 1] = y_values[percent_index]
+					point_labels[percent_index, softmax_index, 2] = new_row[-1]
 				# Add the new row to the array
 				z_values.append(new_row)
 
@@ -544,7 +556,10 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			fig = plt.figure(figsize = (10, 8))
 			ax = fig.add_subplot(111, projection = "3d")
 			# Add the needed traces
-			ax.plot_surface(x_values, y_values, z_values, edgecolor = "none")
+			ax.plot_surface(x_values,
+							y_values,
+							z_values,
+							edgecolor = "none")
 			# Format the figure
 			plt.title(plot_title)
 			ax.set_xlabel(x_label)
@@ -561,7 +576,15 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			# Create the figure
 			fig = go.Figure()
 			# Add the needed traces
-			fig.add_trace(go.Surface(x = x_values, y = y_values, z = z_values))
+			fig.add_trace(go.Surface(x = x_values,
+									 y = y_values,
+									 z = z_values,
+									 showlegend = False,
+									 customdata = point_labels,
+									 hovertemplate = ("<b>Softmax Distance:</b> %{customdata[0]}<br>"
+									 				  "<b>Percent Variance:</b> %{customdata[1]}<br>"
+									   				  "<b>Estimated Dimension:</b> %{customdata[2]}<br>"
+									   				  "<extra></extra>")))
 			# Format the figure
 			fig.update_layout(title = plot_title,
 							  scene = {"xaxis_title": x_label,
@@ -574,8 +597,8 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			if save_flag == True:
 				fig.write_html(image_path)
 
-def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_distance:Any, percent_variance:Any,
-							   used_engine:str = "matplotlib", use_3d_flag:bool = False, show_flag:bool = True, save_flag:bool = False):
+def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_distance:Any, percent_variance:Any, use_3d_flag:bool = False,
+							   used_engine:str = "matplotlib", round_flag:bool = False, show_flag:bool = True, save_flag:bool = False):
 	# Generate a scatter plot representing the pointwise dimension estimates
 	# Generate a plot of the estimated dimension for the given point
 	# Verify that the provided db file is a valid dimension database
@@ -587,15 +610,15 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 	n_cols = read_row[1]
 	min_softmax_distance = read_row[2]
 	max_softmax_distance = read_row[3]
-	n_distances = read_row[4]
 
 	# Verify the other inputs
 	assert isNumeric(softmax_distance, include_numpy_flag = True) == True, "plotDimensionEstimateOfSet: Provided value for 'softmax_distance' must be numeric"
 	assert 0 < softmax_distance and softmax_distance < float("inf"), "plotDimensionEstimateOfSet: Provided value for 'softmax_distance' must be positive and finite"
 	assert isNumeric(percent_variance, include_numpy_flag = True) == True, "plotDimensionEstimateOfSet: Provided value for 'percent_variance' must be numeric"
 	assert 0 <= percent_variance and percent_variance <= 100, "plotDimensionEstimateOfSet: Provided value for 'percent_variance' must be >= 0 and <= 100"
-	assert used_engine in ["matplotlib", "plotly"], "plotDimensionEstimateOfSet: Provided value for 'used_engine' must be 'matplotlib' or 'plotly'"
 	assert type(use_3d_flag) == bool, "plotDimensionEstimateOfSet: Provided value for 'use_3d_flag' must be a bool object"
+	assert used_engine in ["matplotlib", "plotly"], "plotDimensionEstimateOfSet: Provided value for 'used_engine' must be 'matplotlib' or 'plotly'"
+	assert type(round_flag) == bool, "plotDimensionEstimateOfSet: Provided value for 'round_flag' must be a bool object"
 	assert type(show_flag) == bool, "plotDimensionEstimateOfSet: Provided value for 'show_flag' must be a bool object"
 	assert type(save_flag) == bool, "plotDimensionEstimateOfSet: Provided value for 'save_flag' must be a bool object"
 	assert show_flag == True or save_flag == True, "plotDimensionEstimateOfSet: At least of the provided values for 'show_flag' and 'save_flag' must be True"
@@ -617,6 +640,10 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 	# Estimate the pointwise dimension for each point at the needed percent variance (converted to a list)
 	dimension_results = list(estimatePointwiseDimension(db_path = db_path, softmax_distance = softmax_distance, percent_variance = percent_variance).values())
 
+	# Round the dimension estimates to the nearest integer (if needed)
+	if round_flag == True:
+		dimension_results = [round(value) for value in dimension_results]
+
 	# Get all information needed showing the dimension estimates
 	if used_engine == "matplotlib":
 		# Get the RGB spectrum as hex codes
@@ -627,10 +654,15 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 		# Get a color scale usable by plotly
 		color_scale = [[index / 100, customSpectrum(parameter = index / 100).asStringTuple()] for index in range(101)]
 		# Get the labels needed for each point
-		point_labels = [round(value, 3) for value in dimension_results]
+		point_labels = []
+		for row_index in range(n_rows):
+			if round_flag == True:
+				point_labels.append((row_index, dimension_results[row_index]))
+			else:
+				point_labels.append((row_index, round(dimension_results[row_index], 3)))
 
 	# Define shared plot information
-	plot_title = "Estimated Pointwise Dimension Of Set (Softmax Distance Of " + str(softmax_distance) + ", Explained Variance Of " + str(percent_variance) + "%)"
+	plot_title = ("(Rounded) " if round_flag == True else "") + "Estimated Pointwise Dimension Of Set (Softmax Distance Of " + str(softmax_distance) + ", Explained Variance Of " + str(percent_variance) + "%)"
 	x_label = "1st principal direction"
 	y_label = "2nd principal direction"
 	z_label = "3rd principal direction"
@@ -652,7 +684,10 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 			# Create the figure
 			plt.figure(figsize = (10, 8))
 			# Add the needed traces
-			plt.scatter(projected_data_array[:, 0], projected_data_array[:, 1], c = dimension_results, cmap = color_map)
+			plt.scatter(projected_data_array[:, 0],
+						projected_data_array[:, 1],
+						c = dimension_results,
+						cmap = color_map)
 			# Format the figure
 			plt.title(plot_title)
 			plt.xlabel(x_label)
@@ -666,7 +701,11 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 			fig = plt.figure(figsize = (10, 8))
 			ax = fig.add_subplot(projection = "3d")
 			# Add the needed traces
-			scatter_plot = ax.scatter(projected_data_array[:, 0], projected_data_array[:, 1], projected_data_array[:, 2], c = dimension_results, cmap = color_map)
+			scatter_plot = ax.scatter(projected_data_array[:, 0],
+									  projected_data_array[:, 1],
+									  projected_data_array[:, 2],
+									  c = dimension_results,
+									  cmap = color_map)
 			# Format the figure
 			plt.title(plot_title)
 			ax.set_xlabel(x_label)
@@ -690,8 +729,10 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 			fig.add_trace(go.Scatter(x = projected_data_array[:, 0],
 			                         y = projected_data_array[:, 1],
 			                         showlegend = False,
-									 text = point_labels,
-									 hovertemplate = "<b>Estimated Dimension:</b> %{text}<br>",
+									 customdata = point_labels,
+								   	 hovertemplate = ("<b>Index Of Point:</b> %{customdata[0]}<br>"
+													  "<b>Estimated Dimension:</b> %{customdata[1]}<br>"
+													  "<extra></extra>"),
 									 mode = "markers",
 									 marker = {"color": dimension_results,
 									           "colorscale": color_scale,
@@ -711,8 +752,10 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 			                           y = projected_data_array[:, 1],
 									   z = projected_data_array[:, 2],
 									   showlegend = False,
-									   text = point_labels,
-									   hovertemplate = "<b>Estimated Dimension:</b> %{text}<br>",
+									   customdata = point_labels,
+									   hovertemplate = ("<b>Index Of Point:</b> %{customdata[0]}<br>"
+									   					"<b>Estimated Dimension:</b> %{customdata[1]}<br>"
+									   					"<extra></extra>"),
 									   mode = "markers",
 									   marker = {"color": dimension_results,
 									             "colorscale": color_scale,
