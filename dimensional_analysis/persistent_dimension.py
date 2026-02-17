@@ -488,6 +488,10 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 
 		# Create arrays containing the needed values depending on the render engine used
 		if used_engine == "matplotlib":
+			# Get the RGB spectrum as hex codes
+			rgb_hex_spectrum = [customSpectrum(parameter = index / 100).asStringHex() for index in range(101)]
+			# Convert to a color map usable by matplotlib
+			color_map = mcolors.LinearSegmentedColormap.from_list("my_custom_scale", rgb_hex_spectrum)
 			# Initialize the lists of needed x-values, y-values and z-values
 			x_values = []
 			y_values = []
@@ -557,15 +561,18 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			fig = plt.figure(figsize = (10, 8))
 			ax = fig.add_subplot(111, projection = "3d")
 			# Add the needed traces
-			ax.plot_surface(x_values,
-							y_values,
-							z_values,
-							edgecolor = "none")
+			surface_plot = ax.plot_surface(x_values,
+										   y_values,
+										   z_values,
+										   cmap = color_map)
+										   #norm = plt.Normalize(vmin = 0, vmax = n_cols))
 			# Format the figure
 			plt.title(plot_title)
 			ax.set_xlabel(x_label)
 			ax.set_ylabel(y_label)
 			ax.set_zlabel(z_label)
+			fig.colorbar(surface_plot, ax = ax)
+			surface_plot.set_clim(0, n_cols)
 			# Show the figure (if needed)
 			if show_flag == True:
 				plt.show()
