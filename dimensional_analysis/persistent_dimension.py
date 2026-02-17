@@ -347,12 +347,62 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 
 	# Get a path to which the image should be saved and make sure cancel wasn't clicked (if needed)
 	if save_flag == True:
+		# Get the needed image path
 		if used_engine == "matplotlib":
 			image_path = askSaveFilename(allowed_extensions = ["png"])
 			assert image_path is not None, "plotDimensionEstimateOfPoint: Unable to save matplotlib figure because cancel button was clicked"
 		else:
 			image_path = askSaveFilename(allowed_extensions = ["html"])
 			assert image_path is not None, "plotDimensionEstimateOfPoint: Unable to save plotly figure because cancel button was clicked"
+	else:
+		# Set the image path to None because it is not needed
+		image_path = None
+
+	# Define an internal helper function for 2D plots
+	def plot2D(x_values:list, y_values:list, plot_title:str, x_label:str, y_label:str, used_engine:str, image_path:Union[PosixPath, WindowsPath]):
+		# Create, show and save the needed figure of the provided data
+		# Plot the needed information
+		if used_engine == "matplotlib":
+			# Handle the case of using matplotlib
+			# Create the figure
+			plt.figure(figsize = (10, 8))
+
+			# Add the needed traces
+			plt.plot(x_values,y_values)
+
+			# Format the figure
+			plt.title(plot_title)
+			plt.xlabel(x_label)
+			plt.ylabel(y_label)
+			plt.grid()
+
+			# Show the figure (if needed)
+			if show_flag == True:
+				plt.show()
+
+			# Save the figure (if needed)
+			if save_flag == True:
+				plt.savefig(image_path)
+		else:
+			# Handle the case of using plotly
+			# Create the figure
+			fig = go.Figure()
+
+			# Add the needed traces
+			fig.add_trace(go.Scatter(x = x_values, y = y_values, showlegend = False))
+
+			# Format the figure
+			fig.update_layout(title = plot_title)
+			fig.update_xaxes(title = x_label)
+			fig.update_yaxes(title = y_label)
+
+			# Show the figure (if needed)
+			if show_flag == True:
+				fig.show()
+
+			# Save the figure (if needed)
+			if save_flag == True:
+				fig.write_html(image_path)
 
 	# Handle the various cases
 	if min_softmax_distance == max_softmax_distance:
@@ -376,43 +426,8 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 		x_label = "explained variance"
 		y_label = "estimated dimension"
 
-		# Plot the needed information
-		if used_engine == "matplotlib":
-			# Handle the case of using matplotlib
-			# Create the figure
-			plt.figure(figsize = (10, 8))
-			# Add the needed traces
-			plt.plot(x_values,
-					 y_values)
-			# Format the figure
-			plt.title(plot_title)
-			plt.xlabel(x_label)
-			plt.ylabel(y_label)
-			plt.grid()
-			# Show the figure (if needed)
-			if show_flag == True:
-				plt.show()
-			# Save the figure (if needed)
-			if save_flag == True:
-				plt.savefig(image_path)
-		else:
-			# Handle the case of using plotly
-			# Create the figure
-			fig = go.Figure()
-			# Add the needed traces
-			fig.add_trace(go.Scatter(x = x_values,
-									 y = y_values,
-									 showlegend = False))
-			# Format the figure
-			fig.update_layout(title = plot_title)
-			fig.update_xaxes(title = x_label)
-			fig.update_yaxes(title = y_label)
-			# Show the figure (if needed)
-			if show_flag == True:
-				fig.show()
-			# Save the figure (if needed)
-			if save_flag == True:
-				fig.write_html(image_path)
+		# Handle the needed plotting of data
+		plot2D(x_values = x_values, y_values = y_values, plot_title = plot_title, x_label = x_label, y_label = y_label, used_engine = used_engine, image_path = image_path)
 	elif min_percent_variance == max_percent_variance:
 		# Create a 2D plot with fixed percent variance
 		# Generate the x-values and y-values for this plot
@@ -434,43 +449,8 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 		x_label = "softmax distance"
 		y_label = "estimated dimension"
 
-		# Plot the needed information
-		if used_engine == "matplotlib":
-			# Handle the case of using matplotlib
-			# Create the figure
-			plt.figure(figsize = (10, 8))
-			# Add the needed traces
-			plt.plot(x_values,
-					 y_values)
-			# Format the figure
-			plt.title(plot_title)
-			plt.xlabel(x_label)
-			plt.ylabel(y_label)
-			plt.grid()
-			# Show the figure (if needed)
-			if show_flag == True:
-				plt.show()
-			# Save the figure (if needed)
-			if save_flag == True:
-				plt.savefig(image_path)
-		else:
-			# Handle the case of using plotly
-			# Create the figure
-			fig = go.Figure()
-			# Add the needed traces
-			fig.add_trace(go.Scatter(x = x_values,
-									 y = y_values,
-									 showlegend = False))
-			# Format the figure
-			fig.update_layout(title = plot_title)
-			fig.update_xaxes(title = x_label)
-			fig.update_yaxes(title = y_label)
-			# Show the figure (if needed)
-			if show_flag == True:
-				fig.show()
-			# Save the figure (if needed)
-			if save_flag == True:
-				fig.write_html(image_path)
+		# Handle the needed plotting of data
+		plot2D(x_values = x_values, y_values = y_values, plot_title = plot_title, x_label = x_label, y_label = y_label, used_engine = used_engine, image_path = image_path)
 	else:
 		# Compute the coverage ratios for softmax distance and percent variance
 		softmax_ratio = (max_softmax_distance - min_softmax_distance) / (read_row[3] - read_row[2])
@@ -561,11 +541,7 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			fig = plt.figure(figsize = (10, 8))
 			ax = fig.add_subplot(111, projection = "3d")
 			# Add the needed traces
-			surface_plot = ax.plot_surface(x_values,
-										   y_values,
-										   z_values,
-										   cmap = color_map)
-										   #norm = plt.Normalize(vmin = 0, vmax = n_cols))
+			surface_plot = ax.plot_surface(x_values, y_values, z_values, cmap = color_map)
 			# Format the figure
 			plt.title(plot_title)
 			ax.set_xlabel(x_label)
@@ -608,10 +584,12 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			if save_flag == True:
 				fig.write_html(image_path)
 
-def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_distance:Any, percent_variance:Any, use_3d_flag:bool = False,
+def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_distance:Any, percent_variance:Any, plot_type:str,
 							   used_engine:str = "matplotlib", round_flag:bool = False, show_flag:bool = True, save_flag:bool = False):
 	# Generate a scatter plot representing the pointwise dimension estimates
-	# Generate a plot of the estimated dimension for the given point
+
+	use_3d_flag = True
+
 	# Verify that the provided db file is a valid dimension database
 	verifyDimensionDatabase(db_path = db_path)
 
@@ -627,7 +605,7 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 	assert 0 < softmax_distance and softmax_distance < float("inf"), "plotDimensionEstimateOfSet: Provided value for 'softmax_distance' must be positive and finite"
 	assert isNumeric(percent_variance, include_numpy_flag = True) == True, "plotDimensionEstimateOfSet: Provided value for 'percent_variance' must be numeric"
 	assert 0 <= percent_variance and percent_variance <= 100, "plotDimensionEstimateOfSet: Provided value for 'percent_variance' must be >= 0 and <= 100"
-	assert type(use_3d_flag) == bool, "plotDimensionEstimateOfSet: Provided value for 'use_3d_flag' must be a bool object"
+	assert plot_type in ["bar", "scatter2D", "scatter3D"], "plotDimensionEstimateOfSet: Provided value for 'plot_type' must be 'bar', 'scatter2D' or 'scatter3D'"
 	assert used_engine in ["matplotlib", "plotly"], "plotDimensionEstimateOfSet: Provided value for 'used_engine' must be 'matplotlib' or 'plotly'"
 	assert type(round_flag) == bool, "plotDimensionEstimateOfSet: Provided value for 'round_flag' must be a bool object"
 	assert type(show_flag) == bool, "plotDimensionEstimateOfSet: Provided value for 'show_flag' must be a bool object"
@@ -638,10 +616,10 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 	assert min_softmax_distance <= softmax_distance and softmax_distance <= max_softmax_distance, "plotDimensionEstimateOfSet: Provided value for 'softmax_distance' must fall in the range given by the db file (in this case " + str(min_softmax_distance) + " to " + str(max_softmax_distance) + ")"
 
 	# Make sure the number of columns is sufficiently large
-	if use_3d_flag == False:
-		assert n_cols >= 2, "plotDimensionEstimateOfSet: Number of columns in raw data set must be at least 2 when visualizing in 2D"
+	if plot_type == "scatter3D":
+		assert n_cols >= 3, "plotDimensionEstimateOfSet: Number of columns in raw data set must be at least 3 when value for 'plot_type' is 'scatter3D'"
 	else:
-		assert n_cols >= 3, "plotDimensionEstimateOfSet: Number of columns in raw data set must be at least 3 when visualizing in 3D"
+		assert n_cols >= 2, "plotDimensionEstimateOfSet: Number of columns in raw data set must be at least 2 when value for 'plot_type' is 'bar' or 'scatter2D'"
 
 	# Load the projected data array from the db file
 	projected_data_array = zeros((n_rows, n_cols), dtype = float)
@@ -674,9 +652,12 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 
 	# Define shared plot information
 	plot_title = ("(Rounded) " if round_flag == True else "") + "Estimated Pointwise Dimension Of Set (Softmax Distance Of " + str(softmax_distance) + ", Explained Variance Of " + str(percent_variance) + "%)"
-	x_label = "1st principal direction"
-	y_label = "2nd principal direction"
-	z_label = "3rd principal direction"
+	if plot_type == "bar":
+		y_label = "estimated dimension"
+	else:
+		x_label = "1st principal direction"
+		y_label = "2nd principal direction"
+		z_label = "3rd principal direction"
 
 	# Get a path to which the image should be saved and make sure cancel wasn't clicked (if needed)
 	if save_flag == True:
@@ -690,40 +671,38 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 	# Create a scatter plot to visualize the pointwise dimension
 	if used_engine == "matplotlib":
 		# Create the needed matplotlib figure
-		if use_3d_flag == False:
-			# Handle the 2-dimensional case
-			# Create the figure
-			plt.figure(figsize = (10, 8))
-			# Add the needed traces
-			plt.scatter(projected_data_array[:, 0],
-						projected_data_array[:, 1],
-						c = dimension_results,
-						cmap = color_map)
-			# Format the figure
-			plt.title(plot_title)
+		# Create the figure (and axis if needed)
+		fig = plt.figure(figsize = (10, 8))
+		if plot_type == "scatter3D":
+			ax = fig.add_subplot(projection = "3d")
+		# Handle the various cases
+		if plot_type == "bar":
+			# Add the bars
+			plt.bar([str(row_index) for row_index in range(n_rows)], dimension_results, color = rgb_hex_spectrum)
+			# Label the y-axis
+			plt.ylabel(y_label)
+		elif plot_type == "scatter2D":
+			# Scatter in two dimensions
+			plt.scatter(projected_data_array[:, 0], projected_data_array[:, 1], c = dimension_results, cmap = color_map)
+			# Label the x-axis and y-axis
 			plt.xlabel(x_label)
 			plt.ylabel(y_label)
-			plt.grid()
-			plt.colorbar()
-			plt.clim(0, n_cols)
 		else:
-			# Handle the 3-dimensional case
-			# Create the figure
-			fig = plt.figure(figsize = (10, 8))
-			ax = fig.add_subplot(projection = "3d")
-			# Add the needed traces
-			scatter_plot = ax.scatter(projected_data_array[:, 0],
-									  projected_data_array[:, 1],
-									  projected_data_array[:, 2],
-									  c = dimension_results,
-									  cmap = color_map)
-			# Format the figure
-			plt.title(plot_title)
+			# Scatter in three dimensions
+			scatter_plot = ax.scatter(projected_data_array[:, 0], projected_data_array[:, 1], projected_data_array[:, 2], c = dimension_results, cmap = color_map)
+			# Label all three axes
 			ax.set_xlabel(x_label)
 			ax.set_ylabel(y_label)
 			ax.set_zlabel(z_label)
+		# Perform additional formating for the figure
+		plt.title(plot_title)
+		if plot_type == "scatter3D":
 			fig.colorbar(scatter_plot, ax = ax)
 			scatter_plot.set_clim(0, n_cols)
+		else:
+			#plt.colorbar()
+			#plt.clim(0, n_cols)
+			plt.grid()
 		# Show the figure (if needed)
 		if show_flag == True:
 			plt.show()
