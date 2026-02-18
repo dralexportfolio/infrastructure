@@ -21,6 +21,7 @@ from type_helper import isNumeric
 from os import remove
 from os.path import exists
 from math import sqrt
+from matplotlib.cm import ScalarMappable
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 from numpy import array, cumsum, mean, ndarray, zeros
@@ -587,9 +588,6 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_distance:Any, percent_variance:Any, plot_type:str,
 							   used_engine:str = "matplotlib", round_flag:bool = False, show_flag:bool = True, save_flag:bool = False):
 	# Generate a scatter plot representing the pointwise dimension estimates
-
-	use_3d_flag = True
-
 	# Verify that the provided db file is a valid dimension database
 	verifyDimensionDatabase(db_path = db_path)
 
@@ -653,6 +651,7 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 	# Define shared plot information
 	plot_title = ("(Rounded) " if round_flag == True else "") + "Estimated Pointwise Dimension Of Set (Softmax Distance Of " + str(softmax_distance) + ", Explained Variance Of " + str(percent_variance) + "%)"
 	if plot_type == "bar":
+		x_label = "point index"
 		y_label = "estimated dimension"
 	else:
 		x_label = "1st principal direction"
@@ -673,36 +672,44 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 		# Create the needed matplotlib figure
 		# Create the figure (and axis if needed)
 		fig = plt.figure(figsize = (10, 8))
-		if plot_type == "scatter3D":
+		if plot_type == "bar":
+			ax = fig.add_subplot()
+		elif plot_type == "scatter3D":
 			ax = fig.add_subplot(projection = "3d")
 		# Handle the various cases
 		if plot_type == "bar":
-			# Add the bars
-			plt.bar([str(row_index) for row_index in range(n_rows)], dimension_results, color = rgb_hex_spectrum)
-			# Label the y-axis
-			plt.ylabel(y_label)
+			# Set the color normalizer and get the colors by height
+			normalizer = plt.Normalize(0, n_cols)
+			bar_colors = color_map(normalizer(dimension_results))
+			# Add the needed bars
+			bar_plot = ax.bar([str(row_index) for row_index in range(n_rows)], dimension_results, color = bar_colors)
+			# Create the needed colorbar
+			scalar_mappable = ScalarMappable(cmap = color_map, norm = normalizer)
+			scalar_mappable.set_array([])
+			fig.colorbar(scalar_mappable, ax = ax)
 		elif plot_type == "scatter2D":
 			# Scatter in two dimensions
 			plt.scatter(projected_data_array[:, 0], projected_data_array[:, 1], c = dimension_results, cmap = color_map)
-			# Label the x-axis and y-axis
-			plt.xlabel(x_label)
-			plt.ylabel(y_label)
+			# Create the needed colorbar
+			plt.colorbar()
+			plt.clim(0, n_cols)
+			# Turn on the grid
+			plt.grid()
 		else:
 			# Scatter in three dimensions
 			scatter_plot = ax.scatter(projected_data_array[:, 0], projected_data_array[:, 1], projected_data_array[:, 2], c = dimension_results, cmap = color_map)
-			# Label all three axes
+			# Create the needed colorbar
+			fig.colorbar(scatter_plot, ax = ax)
+			scatter_plot.set_clim(0, n_cols)
+		# Perform additional formating for the figure
+		plt.title(plot_title)
+		if plot_type != "scatter3D":
+			plt.xlabel(x_label)
+			plt.ylabel(y_label)
+		else:
 			ax.set_xlabel(x_label)
 			ax.set_ylabel(y_label)
 			ax.set_zlabel(z_label)
-		# Perform additional formating for the figure
-		plt.title(plot_title)
-		if plot_type == "scatter3D":
-			fig.colorbar(scatter_plot, ax = ax)
-			scatter_plot.set_clim(0, n_cols)
-		else:
-			#plt.colorbar()
-			#plt.clim(0, n_cols)
-			plt.grid()
 		# Show the figure (if needed)
 		if show_flag == True:
 			plt.show()
@@ -711,11 +718,25 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 			plt.savefig(image_path)
 	else:
 		# Create the needed plotly figure
-		if use_3d_flag == False:
-			# Handle the 2-dimensional case
-			# Create the figure
-			fig = go.Figure()
-			# Add the needed traces
+		# Create the figure
+		fig = go.Figure()
+		# Handle the various cases
+		if plot_type == "bar":
+			# Add the needed bars
+			fig.add_trace(go.Bar(x = [str(row_index) for row_index in range(n_rows)],
+								 y =  dimension_results,
+								 showlegend = False,
+								 customdata = point_labels,
+								 hovertemplate = ("<b>Index Of Point:</b> %{customdata[0]}<br>"
+												  "<b>Estimated Dimension:</b> %{customdata[1]}<br>"
+												  "<extra></extra>"),
+								 marker = {"color": dimension_results,
+								 		   "colorscale": color_scale,
+								 		   "showscale": True,
+								 		   "cmin": 0,
+									       "cmax": n_cols}))
+		elif plot_type == "scatter2D":
+			# Scatter in two dimensions
 			fig.add_trace(go.Scatter(x = projected_data_array[:, 0],
 			                         y = projected_data_array[:, 1],
 			                         showlegend = False,
@@ -729,15 +750,8 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 									           "showscale": True,
 									           "cmin": 0,
 									           "cmax": n_cols}))
-			# Format the figure
-			fig.update_layout(title = plot_title)
-			fig.update_xaxes(title = x_label)
-			fig.update_yaxes(title = y_label)
 		else:
-			# Handle the 3-dimensional case
-			# Create the figure
-			fig = go.Figure()
-			# Add the needed traces
+			# Scatter in three dimensions
 			fig.add_trace(go.Scatter3d(x = projected_data_array[:, 0],
 			                           y = projected_data_array[:, 1],
 									   z = projected_data_array[:, 2],
@@ -753,7 +767,12 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 									             "cmin": 0,
 									             "cmax": n_cols,
 									             "size": 3}))
-			# Format the figure
+		# Perform additional formating for the figure
+		if plot_type != "scatter3D":
+			fig.update_layout(title = plot_title)
+			fig.update_xaxes(title = x_label)
+			fig.update_yaxes(title = y_label)
+		else:
 			fig.update_layout(title = plot_title,
 							  scene = {"xaxis_title": x_label,
 							           "yaxis_title": y_label,
