@@ -20,7 +20,7 @@ dpi = 300
 
 # Tell the matplotlib engine the needed LaTeX settings
 plt.rcParams.update({"text.usetex": True,
-					 "font.family": "sans-serif",
+					 "font.family": "serif",
 					 "font.serif": ["Computer Modern Roman"],
 					 "text.latex.preamble": r"\usepackage{amsmath, amssymb, amsfonts}"})
 
