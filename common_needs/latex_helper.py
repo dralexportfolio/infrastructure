@@ -19,7 +19,10 @@ fixed_height = None
 dpi = 300
 
 # Tell the matplotlib engine the needed LaTeX settings
-plt.rcParams.update({"text.usetex": True, "font.family": "sans-serif", "text.latex.preamble": r"\usepackage{amsmath, amssymb, amsfonts}"})
+plt.rcParams.update({"text.usetex": True,
+					 "font.family": "sans-serif",
+					 "font.serif": ["Computer Modern Roman"],
+					 "text.latex.preamble": r"\usepackage{amsmath, amssymb, amsfonts}"})
 
 
 #####################################################################################
