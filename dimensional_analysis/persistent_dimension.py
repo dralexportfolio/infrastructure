@@ -366,7 +366,7 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 		if used_engine == "matplotlib":
 			# Handle the case of using matplotlib
 			# Create the figure
-			plt.figure(figsize = (10, 8))
+			plt.figure(figsize = (10, 8), layout = "constrained")
 
 			# Add the needed traces
 			plt.plot(x_values,y_values)
@@ -539,7 +539,7 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 		if used_engine == "matplotlib":
 			# Handle the case of using matplotlib
 			# Create the figure
-			fig = plt.figure(figsize = (10, 8))
+			fig = plt.figure(figsize = (10, 8), layout = "constrained")
 			ax = fig.add_subplot(111, projection = "3d")
 			# Add the needed traces
 			surface_plot = ax.plot_surface(x_values, y_values, z_values, cmap = color_map)
@@ -548,7 +548,7 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			ax.set_xlabel(x_label)
 			ax.set_ylabel(y_label)
 			ax.set_zlabel(z_label)
-			fig.colorbar(surface_plot, ax = ax)
+			fig.colorbar(surface_plot, ax = ax, pad = 0.1)
 			surface_plot.set_clim(0, n_cols)
 			# Show the figure (if needed)
 			if show_flag == True:
@@ -671,7 +671,7 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 	if used_engine == "matplotlib":
 		# Create the needed matplotlib figure
 		# Create the figure (and axis if needed)
-		fig = plt.figure(figsize = (10, 8))
+		fig = plt.figure(figsize = (10, 8), layout = "constrained")
 		if plot_type == "bar":
 			ax = fig.add_subplot()
 		elif plot_type == "scatter3D":
@@ -686,7 +686,7 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 			# Create the needed colorbar
 			scalar_mappable = ScalarMappable(cmap = color_map, norm = normalizer)
 			scalar_mappable.set_array([])
-			fig.colorbar(scalar_mappable, ax = ax)
+			fig.colorbar(scalar_mappable, ax = ax, pad = 0.1)
 		elif plot_type == "scatter2D":
 			# Scatter in two dimensions
 			plt.scatter(projected_data_array[:, 0], projected_data_array[:, 1], c = dimension_results, cmap = color_map)
@@ -699,17 +699,19 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 			# Scatter in three dimensions
 			scatter_plot = ax.scatter(projected_data_array[:, 0], projected_data_array[:, 1], projected_data_array[:, 2], c = dimension_results, cmap = color_map)
 			# Create the needed colorbar
-			fig.colorbar(scatter_plot, ax = ax)
+			fig.colorbar(scatter_plot, ax = ax, pad = 0.1)
 			scatter_plot.set_clim(0, n_cols)
 		# Perform additional formating for the figure
 		plt.title(plot_title)
 		if plot_type != "scatter3D":
 			plt.xlabel(x_label)
 			plt.ylabel(y_label)
+			plt.axis("equal")
 		else:
 			ax.set_xlabel(x_label)
 			ax.set_ylabel(y_label)
 			ax.set_zlabel(z_label)
+			ax.set_aspect("equal")
 		# Show the figure (if needed)
 		if show_flag == True:
 			plt.show()
