@@ -29,6 +29,7 @@ from numpy.linalg import norm
 from pathlib import PosixPath, WindowsPath
 import plotly.graph_objects as go
 from scipy.special import softmax
+from tqdm import tqdm
 from typing import Any, Union
 
 
@@ -115,6 +116,7 @@ def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, 
 	for row_index in range(n_rows):
 		# Get the new row as float values
 		new_row = [float(value) for value in raw_data_array[row_index, :]]
+
 		# Write to the db file
 		appendRow(db_path = db_path, table_name = TABLE_NAME_RAW_DATA_ARRAY)
 		replaceRow(db_path = db_path, table_name = TABLE_NAME_RAW_DATA_ARRAY, row_index = row_index, new_row = new_row)
@@ -127,12 +129,13 @@ def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, 
 	for row_index in range(n_rows):
 		# Get the new row as float values
 		new_row = [float(value) for value in projected_data_array[row_index, :]]
+
 		# Write to the db file
 		appendRow(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY)
 		replaceRow(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, row_index = row_index, new_row = new_row)
 	
 	# Loop over the data points and compute the needed information
-	for row_index in range(n_rows):
+	for row_index in tqdm(range(n_rows)):
 		# Set the center vector to be the current row
 		center_vector = raw_data_array[row_index, :]
 
