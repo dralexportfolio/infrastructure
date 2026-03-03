@@ -17,7 +17,7 @@ from sqlite3_helper import addTable, appendRow, getColumnNames, getColumnTypes, 
 from tkinter_helper import askSaveFilename
 from type_helper import isNumeric
 
-# External module
+# External modules
 from math import sqrt
 from matplotlib.cm import ScalarMappable
 import matplotlib.colors as mcolors
