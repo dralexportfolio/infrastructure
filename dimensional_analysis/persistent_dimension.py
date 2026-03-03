@@ -425,8 +425,15 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			x_values.append(percent_variance)
 			y_values.append(round(dimension_estimate) if round_flag == True else dimension_estimate)
 
-		# Define shared plot information
-		plot_title = ("(Rounded) " if round_flag == True else "") + "Estimated Dimension Of Point " + str(row_index) + " (As Function Of Explained Variance, Softmax Distance Of " + str(min_softmax_distance) + ")"
+		# Define the title to use for the plot
+		plot_title = "(Rounded) " if round_flag == True else ""
+		plot_title += "Estimated Dimension Of Point "
+		plot_title += str(row_index)
+		plot_title += " (As Function Of Explained Variance, Softmax Distance Of "
+		plot_title += str(min_softmax_distance)
+		plot_title += ")"
+
+		# Set the axis labels
 		x_label = "explained variance"
 		y_label = "estimated dimension"
 
@@ -448,8 +455,15 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			x_values.append(softmax_distance)
 			y_values.append(round(dimension_estimate) if round_flag == True else dimension_estimate)
 
-		# Define shared plot information
-		plot_title = ("(Rounded) " if round_flag == True else "") + "Estimated Dimension Of Point " + str(row_index) + " (As Function Of Softmax Distance, Explained Variance Of " + str(min_percent_variance) + "%)"
+		# Define the title to use for the plot
+		plot_title = "(Rounded) " if round_flag == True else ""
+		plot_title += "Estimated Dimension Of Point "
+		plot_title += str(row_index)
+		plot_title += " (As Function Of Softmax Distance, Explained Variance Of "
+		plot_title += str(min_percent_variance)
+		plot_title += "%)"
+
+		# Define the axis labels
 		x_label = "softmax distance"
 		y_label = "estimated dimension"
 
@@ -532,8 +546,13 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 					point_labels[softmax_index, percent_index, 1] = round(y_values[percent_index], 3)
 					point_labels[softmax_index, percent_index, 2] = round(z_values[percent_index, softmax_index], 3)
 
-		# Define shared plot information
-		plot_title = ("(Rounded) " if round_flag == True else "") + "Estimated Dimension Of Point " + str(row_index) + " (As Function Of Softmax Distance And Explained Variance)"
+		# Define the title to use for the plot
+		plot_title = "(Rounded) " if round_flag == True else ""
+		plot_title += "Estimated Dimension Of Point "
+		plot_title += str(row_index)
+		plot_title += " (As Function Of Softmax Distance And Explained Variance)"
+
+		# Define the axis labels
 		x_label = "softmax distance"
 		y_label = "explained variance"
 		z_label = "estimated dimension"
@@ -606,7 +625,7 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 	assert 0 < softmax_distance and softmax_distance < float("inf"), "plotDimensionEstimateOfSet: Provided value for 'softmax_distance' must be positive and finite"
 	assert isNumeric(percent_variance, include_numpy_flag = True) == True, "plotDimensionEstimateOfSet: Provided value for 'percent_variance' must be numeric"
 	assert 0 <= percent_variance and percent_variance <= 100, "plotDimensionEstimateOfSet: Provided value for 'percent_variance' must be >= 0 and <= 100"
-	assert plot_type in ["bar", "scatter2D", "scatter3D"], "plotDimensionEstimateOfSet: Provided value for 'plot_type' must be 'bar', 'scatter2D' or 'scatter3D'"
+	assert plot_type in ["bar", "distribution", "scatter2D", "scatter3D"], "plotDimensionEstimateOfSet: Provided value for 'plot_type' must be 'bar', 'distribution', 'scatter2D' or 'scatter3D'"
 	assert used_engine in ["matplotlib", "plotly"], "plotDimensionEstimateOfSet: Provided value for 'used_engine' must be 'matplotlib' or 'plotly'"
 	assert type(round_flag) == bool, "plotDimensionEstimateOfSet: Provided value for 'round_flag' must be a bool object"
 	assert type(show_flag) == bool, "plotDimensionEstimateOfSet: Provided value for 'show_flag' must be a bool object"
@@ -620,29 +639,37 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 	if plot_type == "scatter3D":
 		assert n_cols >= 3, "plotDimensionEstimateOfSet: Number of columns in raw data set must be at least 3 when value for 'plot_type' is 'scatter3D'"
 	else:
-		assert n_cols >= 2, "plotDimensionEstimateOfSet: Number of columns in raw data set must be at least 2 when value for 'plot_type' is 'bar' or 'scatter2D'"
+		assert n_cols >= 2, "plotDimensionEstimateOfSet: Number of columns in raw data set must be at least 2 when value for 'plot_type' is not 'scatter3D'"
 
 	# Load the projected data array from the db file
 	projected_data_array = zeros((n_rows, n_cols), dtype = float)
 	for row_index in range(n_rows):
 		projected_data_array[row_index, :] = readRow(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, row_index = row_index)
 
-	# Estimate the pointwise dimension for each point at the needed percent variance (converted to a list)
+	# Estimate the pointwise dimension for each point at the needed percent variance (converted to a list) and round the values (if needed)
 	dimension_results = list(estimatePointwiseDimension(db_path = db_path, softmax_distance = softmax_distance, percent_variance = percent_variance).values())
-
-	# Round the dimension estimates to the nearest integer (if needed)
 	if round_flag == True:
 		dimension_results = [round(value) for value in dimension_results]
 
-	# Get all information needed showing the dimension estimates
+	# Get the color map (resp. scale) information needed for matplotlib (resp. plotly), also generate the point labels for plotly (if needed)
 	if used_engine == "matplotlib":
-		# Get the RGB spectrum as hex codes
+		# Get the RGB spectrum as hex codes and convert it to a color map
 		rgb_hex_spectrum = [customSpectrum(parameter = index / 100).asStringHex() for index in range(101)]
-		# Convert to a color map usable by matplotlib
 		color_map = mcolors.LinearSegmentedColormap.from_list("my_custom_scale", rgb_hex_spectrum)
+
+		# Get a path to which the image should be saved and make sure cancel wasn't clicked (if needed)
+		if save_flag == True:
+			image_path = askSaveFilename(allowed_extensions = ["png"])
+			assert image_path is not None, "plotDimensionEstimateOfPoint: Unable to save matplotlib figure because cancel button was clicked"
 	else:
 		# Get a color scale usable by plotly
 		color_scale = [[index / 100, customSpectrum(parameter = index / 100).asStringTuple()] for index in range(101)]
+
+		# Get a path to which the image should be saved and make sure cancel wasn't clicked (if needed)
+		if save_flag == True:
+			image_path = askSaveFilename(allowed_extensions = ["html"])
+			assert image_path is not None, "plotDimensionEstimateOfPoint: Unable to save plotly figure because cancel button was clicked"
+
 		# Get the labels needed for each point
 		point_labels = []
 		for row_index in range(n_rows):
@@ -651,36 +678,22 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 			else:
 				point_labels.append((row_index, round(dimension_results[row_index], 3)))
 
-	# Define shared plot information
-	plot_title = ("(Rounded) " if round_flag == True else "") + "Estimated Pointwise Dimension Of Set (Softmax Distance Of " + str(softmax_distance) + ", Explained Variance Of " + str(percent_variance) + "%)"
-	if plot_type == "bar":
+	# Define the title to use for the plot
+	plot_title = "(Rounded) " if round_flag == True else ""
+	plot_title += "Estimated Pointwise Dimension Of Set (Softmax Distance Of "
+	plot_title += str(softmax_distance) + ", Explained Variance Of "
+	plot_title += str(percent_variance) + "%)"
+
+	# Define an internal function used in the case that the plot type is 'bar'
+	def plotBar():
+		# Set the axis labels
 		x_label = "point index"
 		y_label = "estimated dimension"
-	else:
-		x_label = "1st principal direction"
-		y_label = "2nd principal direction"
-		z_label = "3rd principal direction"
-
-	# Get a path to which the image should be saved and make sure cancel wasn't clicked (if needed)
-	if save_flag == True:
+		# Handle the case of matplotlib vs plotly
 		if used_engine == "matplotlib":
-			image_path = askSaveFilename(allowed_extensions = ["png"])
-			assert image_path is not None, "plotDimensionEstimateOfPoint: Unable to save matplotlib figure because cancel button was clicked"
-		else:
-			image_path = askSaveFilename(allowed_extensions = ["html"])
-			assert image_path is not None, "plotDimensionEstimateOfPoint: Unable to save plotly figure because cancel button was clicked"
-
-	# Create a scatter plot to visualize the pointwise dimension
-	if used_engine == "matplotlib":
-		# Create the needed matplotlib figure
-		# Create the figure (and axis if needed)
-		fig = plt.figure(figsize = (10, 8), layout = "constrained")
-		if plot_type == "bar":
+			# Create the figure and axis
+			fig = plt.figure(figsize = (10, 8), layout = "constrained")
 			ax = fig.add_subplot()
-		elif plot_type == "scatter3D":
-			ax = fig.add_subplot(projection = "3d")
-		# Handle the various cases
-		if plot_type == "bar":
 			# Set the color normalizer and get the colors by height
 			normalizer = plt.Normalize(0, n_cols)
 			bar_colors = color_map(normalizer(dimension_results))
@@ -690,43 +703,19 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 			scalar_mappable = ScalarMappable(cmap = color_map, norm = normalizer)
 			scalar_mappable.set_array([])
 			fig.colorbar(scalar_mappable, ax = ax, pad = 0.1)
-		elif plot_type == "scatter2D":
-			# Scatter in two dimensions
-			plt.scatter(projected_data_array[:, 0], projected_data_array[:, 1], c = dimension_results, cmap = color_map)
-			# Create the needed colorbar
-			plt.colorbar()
-			plt.clim(0, n_cols)
-			# Turn on the grid
-			plt.grid()
-		else:
-			# Scatter in three dimensions
-			scatter_plot = ax.scatter(projected_data_array[:, 0], projected_data_array[:, 1], projected_data_array[:, 2], c = dimension_results, cmap = color_map)
-			# Create the needed colorbar
-			fig.colorbar(scatter_plot, ax = ax, pad = 0.1)
-			scatter_plot.set_clim(0, n_cols)
-		# Perform additional formating for the figure
-		plt.title(plot_title)
-		if plot_type != "scatter3D":
+			# Format the figure
+			plt.title(plot_title)
 			plt.xlabel(x_label)
 			plt.ylabel(y_label)
-			plt.axis("equal")
+			# Show the figure (if needed)
+			if show_flag == True:
+				plt.show()
+			# Save the figure (if needed)
+			if save_flag == True:
+				plt.savefig(image_path)
 		else:
-			ax.set_xlabel(x_label)
-			ax.set_ylabel(y_label)
-			ax.set_zlabel(z_label)
-			ax.set_aspect("equal")
-		# Show the figure (if needed)
-		if show_flag == True:
-			plt.show()
-		# Save the figure (if needed)
-		if save_flag == True:
-			plt.savefig(image_path)
-	else:
-		# Create the needed plotly figure
-		# Create the figure
-		fig = go.Figure()
-		# Handle the various cases
-		if plot_type == "bar":
+			# Create the figure
+			fig = go.Figure()
 			# Add the needed bars
 			fig.add_trace(go.Bar(x = [str(row_index) for row_index in range(n_rows)],
 								 y =  dimension_results,
@@ -740,7 +729,90 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 								 		   "showscale": True,
 								 		   "cmin": 0,
 									       "cmax": n_cols}))
-		elif plot_type == "scatter2D":
+			# Format the figure
+			fig.update_layout(title = plot_title)
+			fig.update_xaxes(title = x_label)
+			fig.update_yaxes(title = y_label)
+			# Show the figure (if needed)
+			if show_flag == True:
+				fig.show()
+			# Save the figure (if needed)
+			if save_flag == True:
+				fig.write_html(image_path)
+
+	# Define an internal function used in the case that the plot type is 'distribution'
+	def plotDistribution():
+		# Set the axis labels
+		x_label = "percentile"
+		y_label = "estimated dimension"
+
+		# Get the x-data and y-data for the plots
+		x_data = [100 * row_index / (n_rows - 1) for row_index in range(n_rows)]
+		y_data = sorted(dimension_results)
+
+		# Handle the case of matplotlib vs plotly
+		if used_engine == "matplotlib":
+			# Create the figure
+			fig = plt.figure(figsize = (10, 8), layout = "constrained")
+			# Add the needed line
+			plt.plot(x_data, y_data)
+			# Format the figure
+			plt.title(plot_title)
+			plt.xlabel(x_label)
+			plt.ylabel(y_label)
+			plt.grid()
+			# Show the figure (if needed)
+			if show_flag == True:
+				plt.show()
+			# Save the figure (if needed)
+			if save_flag == True:
+				plt.savefig(image_path)
+		else:
+			# Create the figure
+			fig = go.Figure()
+			# Add the needed line
+			fig.add_trace(go.Scatter(x= x_data, y = y_data, showlegend = False))
+			# Format the figure
+			fig.update_layout(title = plot_title)
+			fig.update_xaxes(title = x_label)
+			fig.update_yaxes(title = y_label)
+			# Show the figure (if needed)
+			if show_flag == True:
+				fig.show()
+			# Save the figure (if needed)
+			if save_flag == True:
+				fig.write_html(image_path)
+
+	# Define an internal function used in the case that the plot type is 'scatter2D'
+	def plotScatter2D():
+		# Set the axis labels
+		x_label = "1st principal direction"
+		y_label = "2nd principal direction"
+
+		# Handle the case of matplotlib vs plotly
+		if used_engine == "matplotlib":
+			# Create the figure
+			fig = plt.figure(figsize = (10, 8), layout = "constrained")
+			# Scatter in two dimensions
+			plt.scatter(projected_data_array[:, 0], projected_data_array[:, 1], c = dimension_results, cmap = color_map)
+			# Create the needed colorbar
+			plt.colorbar()
+			plt.clim(0, n_cols)
+			# Format the figure
+			plt.title(plot_title)
+			plt.xlabel(x_label)
+			plt.ylabel(y_label)
+			plt.grid()
+			plt.axis("equal")
+			# Show the figure (if needed)
+			if show_flag == True:
+				plt.show()
+			# Save the figure (if needed)
+			if save_flag == True:
+				plt.savefig(image_path)
+		else:
+			# Create the figure
+			fig = go.Figure()
 			# Scatter in two dimensions
 			fig.add_trace(go.Scatter(x = projected_data_array[:, 0],
 			                         y = projected_data_array[:, 1],
@@ -755,7 +827,55 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 									           "showscale": True,
 									           "cmin": 0,
 									           "cmax": n_cols}))
+			# Format the figure
+			fig.update_layout(title = plot_title)
+			fig.update_xaxes(title = x_label)
+			fig.update_yaxes(title = y_label)
+			# Show the figure (if needed)
+			if show_flag == True:
+				fig.show()
+			# Save the figure (if needed)
+			if save_flag == True:
+				fig.write_html(image_path)
+
+	# Define an internal function used in the case that the plot type is 'scatter3D'
+	def plotScatter3D():
+		# Set the axis labels
+		x_label = "1st principal direction"
+		y_label = "2nd principal direction"
+		z_label = "3rd principal direction"
+
+		# Handle the case of matplotlib vs plotly
+		if used_engine == "matplotlib":
+			# Create the figure and axis
+			fig = plt.figure(figsize = (10, 8), layout = "constrained")
+			ax = fig.add_subplot(projection = "3d")
+
+			# Scatter in three dimensions
+			scatter_plot = ax.scatter(projected_data_array[:, 0], projected_data_array[:, 1], projected_data_array[:, 2], c = dimension_results, cmap = color_map)
+
+			# Create the needed colorbar
+			fig.colorbar(scatter_plot, ax = ax, pad = 0.1)
+			scatter_plot.set_clim(0, n_cols)
+
+			# Format the figure
+			plt.title(plot_title)
+			plt.xlabel(x_label)
+			plt.ylabel(y_label)
+			plt.grid()
+			ax.set_aspect("equal")
+
+			# Show the figure (if needed)
+			if show_flag == True:
+				plt.show()
+
+			# Save the figure (if needed)
+			if save_flag == True:
+				plt.savefig(image_path)
 		else:
+			# Create the figure
+			fig = go.Figure()
+
 			# Scatter in three dimensions
 			fig.add_trace(go.Scatter3d(x = projected_data_array[:, 0],
 			                           y = projected_data_array[:, 1],
@@ -772,19 +892,27 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 									             "cmin": 0,
 									             "cmax": n_cols,
 									             "size": 3}))
-		# Perform additional formating for the figure
-		if plot_type != "scatter3D":
-			fig.update_layout(title = plot_title)
-			fig.update_xaxes(title = x_label)
-			fig.update_yaxes(title = y_label)
-		else:
+
+			# Format the figure
 			fig.update_layout(title = plot_title,
 							  scene = {"xaxis_title": x_label,
 							           "yaxis_title": y_label,
 							           "zaxis_title": z_label})
-		# Show the figure (if needed)
-		if show_flag == True:
-			fig.show()
-		# Save the figure (if needed)
-		if save_flag == True:
-			fig.write_html(image_path)
+
+			# Show the figure (if needed)
+			if show_flag == True:
+				fig.show()
+
+			# Save the figure (if needed)
+			if save_flag == True:
+				fig.write_html(image_path)
+
+	# Handle the various cases to create the figures
+	if plot_type == "bar":
+		plotBar()
+	elif plot_type == "distribution":
+		plotDistribution()
+	elif plot_type == "scatter2D":
+		plotScatter2D()
+	else:
+		plotScatter3D()
