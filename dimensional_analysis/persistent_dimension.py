@@ -18,14 +18,14 @@ from tkinter_helper import askSaveFilename
 from type_helper import isNumeric
 
 # External modules
-from os import remove
-from os.path import exists
 from math import sqrt
 from matplotlib.cm import ScalarMappable
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 from numpy import array, cumsum, mean, ndarray, zeros
 from numpy.linalg import norm
+from os import remove
+from os.path import exists
 from pathlib import PosixPath, WindowsPath
 import plotly.graph_objects as go
 from scipy.special import softmax
