@@ -505,6 +505,7 @@ def replaceEntry(db_path:Union[PosixPath, WindowsPath], table_name:str, column_n
 	db_connection.close()
 	
 def swapRows(db_path:Union[PosixPath, WindowsPath], table_name:str, row_index_1:int, row_index_2:int):
+	# Swap two existing rows with each other's values in an existing table in the given db file
 	# Verify the inputs which use common functions
 	db_connection, db_cursor = _checkDBPath(db_path = db_path)
 	_checkTableName(db_cursor = db_cursor, table_name = table_name)

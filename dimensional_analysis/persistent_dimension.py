@@ -18,19 +18,20 @@ from tkinter_helper import askSaveFilename
 from type_helper import isNumeric
 
 # External modules
+from functools import partial
 from math import sqrt
 from matplotlib.cm import ScalarMappable
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
-from numpy import array, cumsum, mean, ndarray, zeros
+from multiprocessing.dummy import Pool
+from numpy import array, cumsum, frombuffer, mean, ndarray, zeros
 from numpy.linalg import norm
-from os import remove
+from os import cpu_count, remove
 from os.path import exists
 from pathlib import PosixPath, WindowsPath
 import plotly.graph_objects as go
 from scipy.special import softmax
-from tqdm import tqdm
-from typing import Any, Union
+from typing import Any, Tuple, Union
 
 
 ##################################################################################################
@@ -133,32 +134,55 @@ def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, 
 		# Write to the db file
 		appendRow(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY)
 		replaceRow(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, row_index = row_index, new_row = new_row)
-	
-	# Loop over the data points and compute the needed information
-	for row_index in tqdm(range(n_rows)):
+
+	# Define an internal function used to run PCA in parallel
+	def runPCAInParallel(bound_raw_data_array:ndarray, bound_all_softmax_distances:list, bound_n_rows:int, row_index:int) -> list:
+		# Run a set of PCA calculations on the given data point and return the results
 		# Set the center vector to be the current row
-		center_vector = raw_data_array[row_index, :]
+		center_vector = bound_raw_data_array[row_index, :]
 
 		# Compute the distances from the points to the center vector
-		distance_array = zeros(n_rows, dtype = float)
-		for other_row_index in range(n_rows):
-			distance_array[other_row_index] = norm(raw_data_array[other_row_index, :] - center_vector)
+		distance_array = zeros(bound_n_rows, dtype = float)
+		for other_row_index in range(bound_n_rows):
+			distance_array[other_row_index] = norm(bound_raw_data_array[other_row_index, :] - center_vector)
+
+		# Initialize a list that will contain lists of cumulative percent variances for each softmax distance
+		all_cumulative_percent_variances = []
 
 		# Loop over the needed softmax distances
-		for distance_index in range(n_distances):
+		for softmax_distance in bound_all_softmax_distances:
 			# Compute the weight vector using softmax on the distances
-			weight_vector = softmax(-(distance_array / all_softmax_distances[distance_index])**2)
+			weight_vector = softmax(-(distance_array / softmax_distance)**2)
 
 			# Compute the needed PCA results
-			pca_results = performPCA(raw_data_array = raw_data_array, normalize_flag = False, center_vector = center_vector, weight_vector = weight_vector)
+			pca_results = performPCA(raw_data_array = bound_raw_data_array, normalize_flag = False, center_vector = center_vector, weight_vector = weight_vector)
 
 			# Compute the cumulative percent variances from these results (note: force first and last values to be 0 and 100 respectively)
 			cumulative_percent_variances = [0.0] + [float(value) for value in cumsum(pca_results["outputs"]["ordered_percent_variances"])]
 			cumulative_percent_variances[-1] = 100.0
 
-			# Write this information to the db file
+			# Append the variances for this softmax distance to the list of lists
+			all_cumulative_percent_variances.append(cumulative_percent_variances)
+
+		# Return the results
+		return all_cumulative_percent_variances
+
+	# Bind the raw data array to the parallel function
+	runPCAInParallelBound = partial(runPCAInParallel, raw_data_array, all_softmax_distances, n_rows)
+
+	# Create the input list for the process
+	all_inputs = list(range(n_rows))
+
+	# Initialize a pool with the needed number of processes, run the computation in parallel, and end by closing the pool
+	pool = Pool(processes = max(cpu_count() - 1, 1))
+	all_outputs = pool.map(runPCAInParallelBound, all_inputs)
+	pool.close()
+
+	# Write the resulting outputs to the db file
+	for row_index in range(n_rows):
+		for distance_index in range(n_distances):
 			appendRow(db_path = db_path, table_name = all_cumulative_table_names[distance_index])
-			replaceRow(db_path = db_path, table_name = all_cumulative_table_names[distance_index], row_index = row_index, new_row = cumulative_percent_variances)
+			replaceRow(db_path = db_path, table_name = all_cumulative_table_names[distance_index], row_index = row_index, new_row = all_outputs[row_index][distance_index])
 		
 	# Return the path of the db file
 	return db_path
