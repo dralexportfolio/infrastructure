@@ -171,11 +171,25 @@ class ConnectionManager:
 		# Return the db file cursor
 		return self._db_cursor
 
+	def getDBPath(self) -> Union[PosixPath, WindowsPath]:
+		# Return the db file path
+		return self._db_path
+
+	def getMaxBufferSize(self) -> int:
+		# Return the maximum buffer size
+		return self._max_buffer_size
+
 	### Define function for executing provided queries ###
 	def execute(self, query:str, iterate_flag:bool, fill_values:list = None) -> Cursor:
 		# Execute the given query and handle buffer behavior (if needed)
 		# Only proceed if the connection is active
 		assert self._active_flag == True, "ConnectionManager::execute: Only able to commit changes to the db file when the connection is active"
+
+		# Verify the inputs (only loosely, leave detailed verification to the cursor)
+		assert type(query) == str, "ConnectionManager::execute: Provided value for 'query' must be a str object"
+		assert type(iterate_flag) == bool, "ConnectionManager::execute: Provided value for 'iterate_flag' must be a bool object"
+		if fill_values is not None:
+			assert type(fill_values) == list, "ConnectionManager::execute: If provided, value for 'fill_values' must be a list object"
 
 		# Execute the query using the cursor
 		if fill_values is None:
