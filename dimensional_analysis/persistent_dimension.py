@@ -13,7 +13,7 @@ path.insert(0, str(infrastructure_folder.joinpath("common_needs")))
 # Internal modules
 from color_helper import customSpectrum
 from dimension_reduction import performPCA
-from sqlite3_helper import addTable, appendRow, getColumnNames, getColumnTypes, getExistingTables, getRowCount, readColumn, readRow, replaceRow
+from sqlite3_helper import addTable, appendRow, ConnectionManager, getColumnNames, getColumnTypes, getExistingTables, getRowCount, readColumn, readRow, replaceRow
 from tkinter_helper import askSaveFilename
 from type_helper import isNumeric
 
@@ -91,27 +91,30 @@ def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, 
 	db_path = askSaveFilename(allowed_extensions = ["db"])
 	if exists(db_path):
 		remove(db_path)
+
+	# Create a connection manager to associate with the db file
+	connection_manager = ConnectionManager(db_path = db_path)
 	
 	# Extract the number of rows and columns in the data
 	n_rows = raw_data_array.shape[0]
 	n_cols = raw_data_array.shape[1]
 	
 	# Create the needed db file and tables
-	addTable(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS, column_names = COLUMN_NAMES_INPUT_SETTINGS, column_types = COLUMN_TYPES_INPUT_SETTINGS)
-	addTable(db_path = db_path, table_name = TABLE_NAME_DISTANCES_USED, column_names = COLUMN_NAMES_DISTANCES_USED, column_types = COLUMN_TYPES_DISTANCES_USED)
-	addTable(db_path = db_path, table_name = TABLE_NAME_RAW_DATA_ARRAY, column_names = COLUMN_NAMES_FUNCTION_RAW_DATA_ARRAY(n_cols), column_types = COLUMN_TYPES_FUNCTION_RAW_DATA_ARRAY(n_cols))
-	addTable(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, column_names = COLUMN_NAMES_FUNCTION_PROJECTED_DATA_ARRAY(n_cols), column_types = COLUMN_TYPES_FUNCTION_PROJECTED_DATA_ARRAY(n_cols))
+	addTable(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS, column_names = COLUMN_NAMES_INPUT_SETTINGS, column_types = COLUMN_TYPES_INPUT_SETTINGS)
+	addTable(connection_manager = connection_manager, table_name = TABLE_NAME_DISTANCES_USED, column_names = COLUMN_NAMES_DISTANCES_USED, column_types = COLUMN_TYPES_DISTANCES_USED)
+	addTable(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY, column_names = COLUMN_NAMES_FUNCTION_RAW_DATA_ARRAY(n_cols), column_types = COLUMN_TYPES_FUNCTION_RAW_DATA_ARRAY(n_cols))
+	addTable(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, column_names = COLUMN_NAMES_FUNCTION_PROJECTED_DATA_ARRAY(n_cols), column_types = COLUMN_TYPES_FUNCTION_PROJECTED_DATA_ARRAY(n_cols))
 	for distance_index in range(n_distances):
-		addTable(db_path = db_path, table_name = all_cumulative_table_names[distance_index], column_names = COLUMN_NAMES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_cols), column_types = COLUMN_TYPES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_cols))
+		addTable(connection_manager = connection_manager, table_name = all_cumulative_table_names[distance_index], column_names = COLUMN_NAMES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_cols), column_types = COLUMN_TYPES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_cols))
 
 	# Write the settings to the db file
-	appendRow(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS)
-	replaceRow(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0, new_row = [n_rows, n_cols, float(min_softmax_distance), float(max_softmax_distance), n_distances])
+	appendRow(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS)
+	replaceRow(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0, new_row = [n_rows, n_cols, float(min_softmax_distance), float(max_softmax_distance), n_distances])
 
 	# Write the softmax distances and associated table names to the db file
 	for distance_index in range(n_distances):
-		appendRow(db_path = db_path, table_name = TABLE_NAME_DISTANCES_USED)
-		replaceRow(db_path = db_path, table_name = TABLE_NAME_DISTANCES_USED, row_index = distance_index, new_row = [all_cumulative_table_names[distance_index], float(all_softmax_distances[distance_index])])
+		appendRow(connection_manager = connection_manager, table_name = TABLE_NAME_DISTANCES_USED)
+		replaceRow(connection_manager = connection_manager, table_name = TABLE_NAME_DISTANCES_USED, row_index = distance_index, new_row = [all_cumulative_table_names[distance_index], float(all_softmax_distances[distance_index])])
 
 	# Write the raw data array to the db file
 	for row_index in range(n_rows):
@@ -119,8 +122,8 @@ def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, 
 		new_row = [float(value) for value in raw_data_array[row_index, :]]
 
 		# Write to the db file
-		appendRow(db_path = db_path, table_name = TABLE_NAME_RAW_DATA_ARRAY)
-		replaceRow(db_path = db_path, table_name = TABLE_NAME_RAW_DATA_ARRAY, row_index = row_index, new_row = new_row)
+		appendRow(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY)
+		replaceRow(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY, row_index = row_index, new_row = new_row)
 
 	# Perform PCA on the raw data array to get the projected data array used for plotting
 	pca_results = performPCA(raw_data_array = raw_data_array, normalize_flag = False)
@@ -132,8 +135,8 @@ def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, 
 		new_row = [float(value) for value in projected_data_array[row_index, :]]
 
 		# Write to the db file
-		appendRow(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY)
-		replaceRow(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, row_index = row_index, new_row = new_row)
+		appendRow(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY)
+		replaceRow(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, row_index = row_index, new_row = new_row)
 
 	# Define an internal function used to run PCA in parallel
 	def runPCAInParallel(bound_raw_data_array:ndarray, bound_all_softmax_distances:list, bound_n_rows:int, row_index:int) -> list:
@@ -181,9 +184,12 @@ def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, 
 	# Write the resulting outputs to the db file
 	for row_index in range(n_rows):
 		for distance_index in range(n_distances):
-			appendRow(db_path = db_path, table_name = all_cumulative_table_names[distance_index])
-			replaceRow(db_path = db_path, table_name = all_cumulative_table_names[distance_index], row_index = row_index, new_row = all_outputs[row_index][distance_index])
-		
+			appendRow(connection_manager = connection_manager, table_name = all_cumulative_table_names[distance_index])
+			replaceRow(connection_manager = connection_manager, table_name = all_cumulative_table_names[distance_index], row_index = row_index, new_row = all_outputs[row_index][distance_index])
+
+	# Close the connection manager
+	connection_manager.close()
+
 	# Return the path of the db file
 	return db_path
 
@@ -193,17 +199,20 @@ def verifyDimensionDatabase(db_path:Union[PosixPath, WindowsPath]):
 	# Verify the inputs
 	assert type(db_path) in [PosixPath, WindowsPath], "verifyDimensionDatabase: Provided value for 'db_path' must be a PosixPath or WindowsPath object"
 
+	# Create a connection manager to associate with the db file
+	connection_manager = ConnectionManager(db_path = db_path)
+
 	# Load the list of tables from the db file
-	table_names = getExistingTables(db_path = db_path)
+	table_names = getExistingTables(connection_manager = connection_manager)
 
 	# Make sure the input settings table exists and has the correct column names, column types and row count
 	assert TABLE_NAME_INPUT_SETTINGS in table_names, "verifyDimensionDatabase: Provided value for 'db_path' must refer to a database with " + TABLE_NAME_INPUT_SETTINGS + " as a table name"
-	assert getColumnNames(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS) == COLUMN_NAMES_INPUT_SETTINGS, "verifyDimensionDatabase: Table of name " + TABLE_NAME_INPUT_SETTINGS + " has the incorrect column names"
-	assert getColumnTypes(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS) == COLUMN_TYPES_INPUT_SETTINGS, "verifyDimensionDatabase: Table of name " + TABLE_NAME_INPUT_SETTINGS + " has the incorrect column types"
-	assert getRowCount(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS) == 1, "verifyDimensionDatabase: Table of name " + TABLE_NAME_INPUT_SETTINGS + " has the incorrect number or rows"
+	assert getColumnNames(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS) == COLUMN_NAMES_INPUT_SETTINGS, "verifyDimensionDatabase: Table of name " + TABLE_NAME_INPUT_SETTINGS + " has the incorrect column names"
+	assert getColumnTypes(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS) == COLUMN_TYPES_INPUT_SETTINGS, "verifyDimensionDatabase: Table of name " + TABLE_NAME_INPUT_SETTINGS + " has the incorrect column types"
+	assert getRowCount(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS) == 1, "verifyDimensionDatabase: Table of name " + TABLE_NAME_INPUT_SETTINGS + " has the incorrect number or rows"
 
 	# Load needed values from the input settings table
-	read_row = readRow(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
+	read_row = readRow(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
 	n_rows = read_row[0]
 	n_cols = read_row[1]
 	n_distances = read_row[4]
@@ -211,27 +220,29 @@ def verifyDimensionDatabase(db_path:Union[PosixPath, WindowsPath]):
 	# Make sure all other tables exist and have the correct column names, column types and row counts
 	# Distances used table
 	assert TABLE_NAME_DISTANCES_USED in table_names, "verifyDimensionDatabase: Provided value for 'db_path' must refer to a database with " + TABLE_NAME_DISTANCES_USED + " as a table name"
-	assert getColumnNames(db_path = db_path, table_name = TABLE_NAME_DISTANCES_USED) == COLUMN_NAMES_DISTANCES_USED, "verifyDimensionDatabase: Table of name " + TABLE_NAME_DISTANCES_USED + " has the incorrect column names"
-	assert getColumnTypes(db_path = db_path, table_name = TABLE_NAME_DISTANCES_USED) == COLUMN_TYPES_DISTANCES_USED, "verifyDimensionDatabase: Table of name " + TABLE_NAME_DISTANCES_USED + " has the incorrect column types"
-	assert getRowCount(db_path = db_path, table_name = TABLE_NAME_DISTANCES_USED) == n_distances, "verifyDimensionDatabase: Table of name " + TABLE_NAME_DISTANCES_USED + " has the incorrect number or rows"
+	assert getColumnNames(connection_manager = connection_manager, table_name = TABLE_NAME_DISTANCES_USED) == COLUMN_NAMES_DISTANCES_USED, "verifyDimensionDatabase: Table of name " + TABLE_NAME_DISTANCES_USED + " has the incorrect column names"
+	assert getColumnTypes(connection_manager = connection_manager, table_name = TABLE_NAME_DISTANCES_USED) == COLUMN_TYPES_DISTANCES_USED, "verifyDimensionDatabase: Table of name " + TABLE_NAME_DISTANCES_USED + " has the incorrect column types"
+	assert getRowCount(connection_manager = connection_manager, table_name = TABLE_NAME_DISTANCES_USED) == n_distances, "verifyDimensionDatabase: Table of name " + TABLE_NAME_DISTANCES_USED + " has the incorrect number or rows"
 	# Raw data array table
 	assert TABLE_NAME_RAW_DATA_ARRAY in table_names, "verifyDimensionDatabase: Provided value for 'db_path' must refer to a database with " + TABLE_NAME_RAW_DATA_ARRAY + " as a table name"
-	assert getColumnNames(db_path = db_path, table_name = TABLE_NAME_RAW_DATA_ARRAY) == COLUMN_NAMES_FUNCTION_RAW_DATA_ARRAY(n_cols), "verifyDimensionDatabase: Table of name " + TABLE_NAME_RAW_DATA_ARRAY + " has the incorrect column names"
-	assert getColumnTypes(db_path = db_path, table_name = TABLE_NAME_RAW_DATA_ARRAY) == COLUMN_TYPES_FUNCTION_RAW_DATA_ARRAY(n_cols), "verifyDimensionDatabase: Table of name " + TABLE_NAME_RAW_DATA_ARRAY + " has the incorrect column types"
-	assert getRowCount(db_path = db_path, table_name = TABLE_NAME_RAW_DATA_ARRAY) == n_rows, "verifyDimensionDatabase: Table of name " + TABLE_NAME_RAW_DATA_ARRAY + " has the incorrect number or rows"
+	assert getColumnNames(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY) == COLUMN_NAMES_FUNCTION_RAW_DATA_ARRAY(n_cols), "verifyDimensionDatabase: Table of name " + TABLE_NAME_RAW_DATA_ARRAY + " has the incorrect column names"
+	assert getColumnTypes(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY) == COLUMN_TYPES_FUNCTION_RAW_DATA_ARRAY(n_cols), "verifyDimensionDatabase: Table of name " + TABLE_NAME_RAW_DATA_ARRAY + " has the incorrect column types"
+	assert getRowCount(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY) == n_rows, "verifyDimensionDatabase: Table of name " + TABLE_NAME_RAW_DATA_ARRAY + " has the incorrect number or rows"
 	# Projected data array table
 	assert TABLE_NAME_PROJECTED_DATA_ARRAY in table_names, "verifyDimensionDatabase: Provided value for 'db_path' must refer to a database with " + TABLE_NAME_PROJECTED_DATA_ARRAY + " as a table name"
-	assert getColumnNames(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY) == COLUMN_NAMES_FUNCTION_PROJECTED_DATA_ARRAY(n_cols), "verifyDimensionDatabase: Table of name " + TABLE_NAME_PROJECTED_DATA_ARRAY + " has the incorrect column names"
-	assert getColumnTypes(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY) == COLUMN_TYPES_FUNCTION_PROJECTED_DATA_ARRAY(n_cols), "verifyDimensionDatabase: Table of name " + TABLE_NAME_PROJECTED_DATA_ARRAY + " has the incorrect column types"
-	assert getRowCount(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY) == n_rows, "verifyDimensionDatabase: Table of name " + TABLE_NAME_PROJECTED_DATA_ARRAY + " has the incorrect number or rows"
+	assert getColumnNames(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY) == COLUMN_NAMES_FUNCTION_PROJECTED_DATA_ARRAY(n_cols), "verifyDimensionDatabase: Table of name " + TABLE_NAME_PROJECTED_DATA_ARRAY + " has the incorrect column names"
+	assert getColumnTypes(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY) == COLUMN_TYPES_FUNCTION_PROJECTED_DATA_ARRAY(n_cols), "verifyDimensionDatabase: Table of name " + TABLE_NAME_PROJECTED_DATA_ARRAY + " has the incorrect column types"
+	assert getRowCount(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY) == n_rows, "verifyDimensionDatabase: Table of name " + TABLE_NAME_PROJECTED_DATA_ARRAY + " has the incorrect number or rows"
 	# Cumulative percent variances tables
 	for distance_index in range(n_distances):
 		current_table_name = TABLE_NAME_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(distance_index)
 		assert current_table_name in table_names, "verifyDimensionDatabase: Provided value for 'db_path' must refer to a database with " + current_table_name + " as a table name"
-		assert getColumnNames(db_path = db_path, table_name = current_table_name) == COLUMN_NAMES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_cols), "verifyDimensionDatabase: Table of name " + current_table_name + " has the incorrect column names"
-		assert getColumnTypes(db_path = db_path, table_name = current_table_name) == COLUMN_TYPES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_cols), "verifyDimensionDatabase: Table of name " + current_table_name + " has the incorrect column types"
-		assert getRowCount(db_path = db_path, table_name = current_table_name) == n_rows, "verifyDimensionDatabase: Table of name " + current_table_name + " has the incorrect number or rows"
+		assert getColumnNames(connection_manager = connection_manager, table_name = current_table_name) == COLUMN_NAMES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_cols), "verifyDimensionDatabase: Table of name " + current_table_name + " has the incorrect column names"
+		assert getColumnTypes(connection_manager = connection_manager, table_name = current_table_name) == COLUMN_TYPES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_cols), "verifyDimensionDatabase: Table of name " + current_table_name + " has the incorrect column types"
+		assert getRowCount(connection_manager = connection_manager, table_name = current_table_name) == n_rows, "verifyDimensionDatabase: Table of name " + current_table_name + " has the incorrect number or rows"
 
+	# Close the connection manager
+	connection_manager.close()
 
 #########################################################################################
 ### Define a function which estimates the local dimension of each point in a data set ###
@@ -240,6 +251,9 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], softmax_di
 	# Compute the pointwise dimension for each requested point the data stored in the pre-computed db file
 	# Verify that the provided db file is a valid dimension database
 	verifyDimensionDatabase(db_path = db_path)
+
+	# Create a connection manager to associate with the db file
+	connection_manager = ConnectionManager(db_path = db_path)
 
 	# Verify the other inputs
 	assert isNumeric(softmax_distance, include_numpy_flag = True) == True, "estimatePointwiseDimension: Provided value for 'softmax_distance' must be numeric"
@@ -252,7 +266,7 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], softmax_di
 			assert type(row_index) == int, "estimatePointwiseDimension: If provided, value for 'needed_indices' must be a list of int objects"
 
 	# Get the relevant input settings from the db file
-	read_row = readRow(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
+	read_row = readRow(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
 	n_rows = read_row[0]
 	n_cols = read_row[1]
 	min_softmax_distance = read_row[2]
@@ -275,7 +289,7 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], softmax_di
 	# Define an internal helper function for getting a dimension estimate at a given softmax distance index
 	def getDimensionEstimate(softmax_index:int, row_index:int) -> float:
 		# Load the cumulative percent variances for this data point
-		all_percent_variances = readRow(db_path = db_path, table_name = TABLE_NAME_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(softmax_index), row_index = row_index)
+		all_percent_variances = readRow(connection_manager = connection_manager, table_name = TABLE_NAME_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(softmax_index), row_index = row_index)
 
 		# Compute the estimated dimension by linearly interpolating
 		for percent_index in range(n_cols):
@@ -303,7 +317,7 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], softmax_di
 		else:
 			# Multiple softmax distances were used, do a double variable linear interpolation
 			# Load the list of softmax distances used
-			all_softmax_distances = readColumn(db_path = db_path, table_name = TABLE_NAME_DISTANCES_USED, column_name = "softmax_distance")
+			all_softmax_distances = readColumn(connection_manager = connection_manager, table_name = TABLE_NAME_DISTANCES_USED, column_name = "softmax_distance")
 
 			# Search for the correct range of softmax
 			for softmax_index in range(n_distances - 1):
@@ -323,6 +337,9 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], softmax_di
 
 					# Combine to get the needed dimension estimate
 					dimension_results[row_index] = lower_softmax_weight * lower_dimension_estimate + upper_softmax_weight * upper_dimension_estimate
+
+	# Close the connection manager
+	connection_manager.close()
 	
 	# Return the results
 	return dimension_results
@@ -338,10 +355,15 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 	verifyDimensionDatabase(db_path = db_path)
 
 	# Get the relevant input settings from the db file
-	read_row = readRow(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
+	# Create a connection manager to associate with the db file
+	connection_manager = ConnectionManager(db_path = db_path)
+	# Read the needed values
+	read_row = readRow(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
 	n_rows = read_row[0]
 	n_cols = read_row[1]
 	n_distances = read_row[4]
+	# Close the connection manager
+	connection_manager.close()
 
 	# Verify the other inputs
 	# Row index (i.e. point to plot)
@@ -637,8 +659,11 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 	# Verify that the provided db file is a valid dimension database
 	verifyDimensionDatabase(db_path = db_path)
 
+	# Create a connection manager to associate with the db file
+	connection_manager = ConnectionManager(db_path = db_path)
+
 	# Get the relevant input settings from the db file
-	read_row = readRow(db_path = db_path, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
+	read_row = readRow(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
 	n_rows = read_row[0]
 	n_cols = read_row[1]
 	min_softmax_distance = read_row[2]
@@ -668,7 +693,10 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 	# Load the projected data array from the db file
 	projected_data_array = zeros((n_rows, n_cols), dtype = float)
 	for row_index in range(n_rows):
-		projected_data_array[row_index, :] = readRow(db_path = db_path, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, row_index = row_index)
+		projected_data_array[row_index, :] = readRow(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, row_index = row_index)
+
+	# Close the connection manager
+	connection_manager.close()
 
 	# Estimate the pointwise dimension for each point at the needed percent variance (converted to a list) and round the values (if needed)
 	dimension_results = list(estimatePointwiseDimension(db_path = db_path, softmax_distance = softmax_distance, percent_variance = percent_variance).values())
