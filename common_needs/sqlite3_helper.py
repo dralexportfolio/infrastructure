@@ -7,6 +7,7 @@ from type_helper import isDictionaryWithStringKeys, isListWithStringEntries
 # External modules
 from os.path import exists
 from pathlib import Path, PosixPath, WindowsPath
+from PrivateAttributesDecorator import private_attributes_dec
 from sqlite3 import connect, Connection, Cursor
 from typing import Any, Tuple, Union
 
@@ -27,105 +28,208 @@ ALLOWED_COLUMN_TYPES += ["CHARACTER(20)", "VARCHAR(255)", "VARYING CHARACTER(255
 ALLOWED_COLUMN_TYPES += ["BLOB", "no datatype specified"]
 
 
-###########################################################
-### Define internal functions which are frequently used ###
-###########################################################
-def _checkDBPath(db_path:Union[PosixPath, WindowsPath]) -> Tuple[Connection, Cursor]:
-	# Verify that the provided db file location is valid, returns a connection and cursor for thedb file
-	# Make sure the filename in the path is valid
-	assert type(db_path) in [PosixPath, WindowsPath], "_checkDBPath: Provided value for 'db_path' must be a PosixPath or WindowsPath object"
-	assert db_path.name.endswith(".db") == True, "_checkDBPath: Provided value for 'db_path' must refer to a filename ending with '.db'"
-	assert len(db_path.name) > 3, "_checkDBPath: Provided value for 'db_path' must refer to a filename of length > 3"
-	
-	# Make sure the file exists
-	assert exists(db_path.parent) == True, "_checkDBPath: Provided value for 'db_path' must refer to a filename in an existing folder"
-	
-	# Connect to the db file and create a cursor
-	db_connection = connect(db_path)
-	db_cursor = db_connection.cursor()
-	
-	# Return the results
-	return db_connection, db_cursor
-	
-def _checkTableName(db_cursor:Cursor, table_name:str = None, exists_flag:bool = True) -> list:
-	# Verify that the table is (or isn't) present in the given db file (without checking existence of the db file), returns the list of table names
-	# Make sure that the table name is valid (if needed)
-	if table_name is not None:
-		assert type(table_name) == str, "_checkTableName: If provided, value for 'table_name' must be a str object"
-		assert len(table_name) > 0, "_checkTableName: If provided, value for 'table_name' must be a non-empty string"
-	
-	# Fetch all tables in the database
-	table_names_query = "SELECT name FROM sqlite_master WHERE type = 'table';"
-	table_names_result = db_cursor.execute(table_names_query).fetchall()
-	table_names = [value[0] for value in table_names_result]
-	
-	# Handle the various cases (if needed)
-	if table_name is not None:
-		if exists_flag == True:
-			# Make sure the given table exists in the database
-			assert table_name in table_names, "_checkTableName: Provided value for 'table_name' doesn't correspond to an existing table in the db file (when it should)"
-		else:
-			# Make sure the given table doesn't exist in the database
-			assert table_name not in table_names, "_checkTableName: Provided value for 'table_name' corresponds to an existing table in the db file (when it shouldn't)"
-		
-	# Return the results
-	return table_names
-		
-def _checkColumnName(db_cursor:Cursor, table_name:str, column_name:str = None, exists_flag:bool = True) -> list:
-	# Verify that the column name is (or isn't) present in the given table of the given db file (without checking existence of the db file or table), returns a list of column names
-	# Make sure that the column name is valid (if needed)
-	if column_name is not None:
-		assert type(column_name) == str, "_checkColumnName: If provided, value for 'column_name' must be a str object"
-		assert len(column_name) > 0, "_checkColumnName: If provided, value for 'column_name' must be a non-empty string"
-	
-	# Fetch all column names in the table
-	column_names_query = "SELECT name FROM PRAGMA_TABLE_INFO('" + table_name + "');"
-	column_names_result = db_cursor.execute(column_names_query).fetchall()
-	column_names = [value[0] for value in column_names_result]
-	
-	# Handle the various cases (if needed)
-	if column_name is not None:
-		if exists_flag == True:
-			# Make sure the given column exists in the table
-			assert column_name in column_names, "_checkColumnName: Provided value for 'column_name' doesn't correspond to an existing column in requested table (when it should)"
-		else:
-			# Make sure the given column doesn't exist in the table
-			assert column_name not in column_names, "_checkColumnName: Provided value for 'column_name' corresponds to an existing column in requested table (when it shouldn't)"
-		
-	# Return the results
-	return column_names
-	
-def _checkRowCount(db_cursor:Cursor, table_name:str, min_count:int = None) -> int:
-	# Verify that the row count in the given table of the given db file is above the threshold (without checking existence of the db file or table), returns the number of rows
-	# Make sure that the minimum row count is valid (if needed)
-	if min_count is not None:
-		assert type(min_count) == int, "_checkRowCount: If provided, value for 'row_count' must be an int object"
-		assert min_count >= 0, "_checkRowCount: If provided, value for 'row_count' must be non-negative"
-		
-	# Fetch the number of rows from this table
-	row_count_query = "SELECT COUNT(*) FROM '" + table_name + "';"
-	row_count_result = db_cursor.execute(row_count_query).fetchone()
-	row_count = row_count_result[0]
-	
-	# Check that the row count is large enough (if needed)
-	if min_count is not None:
-		assert row_count >= min_count, "_checkRowCount: Relevant table doesn't have a row count >= the provided threshold"
-		
-	# Return the results
-	return row_count
+#######################################################################################################
+### Define the connection manager object to optimize commit frequency and perform additional checks ###
+#######################################################################################################
+# Create the decorator needed for making the attributes private
+connection_manager_decorator = private_attributes_dec("_active_flag",		# class variables
+													  "_buffer_size",
+													  "_db_connection",
+										 			  "_db_cursor",
+													  "_db_path",
+													  "_max_buffer_size",
+													  "_checkDBPath")		# internal functions
+
+# Define the class with private attributes
+@connection_manager_decorator
+class ConnectionManager:
+	### Initialize the class ###
+	def __init__(self, db_path:Union[PosixPath, WindowsPath], max_buffer_size:int):
+		# Verify the inputs
+		assert type(max_buffer_size) == int, "ConnectionManager::__init__: Provided value for 'max_buffer_size' must be an int object"
+		assert 1 <= max_buffer_size and max_buffer_size <= 1000, "ConnectionManager::__init__: Provided value for 'max_buffer_size' must be >= 1 and <= 1000"
+
+		# Store the provided values
+		self._db_path = db_path
+		self._max_buffer_size = max_buffer_size
+
+		# Verify the stored db path and store the associated connection and cursor
+		self._checkDBPath()
+
+		# Initialize the current buffer size
+		self._buffer_size = 0
+
+		# Initialize a flag indicating that the connection is active
+		self._active_flag = True
+
+	### Define an internal function to verify and connect to a db file using a path ###
+	def _checkDBPath(self) -> Tuple[Connection, Cursor]:
+		# Verify that the provided db file location is valid, returns a connection and cursor for the db file
+		# Make sure the filename in the path is valid
+		assert type(self._db_path) in [PosixPath, WindowsPath], "ConnectionManager::_checkDBPath: Stored value for 'db_path' must be a PosixPath or WindowsPath object"
+		assert self._db_path.name.endswith(".db") == True, "ConnectionManager::_checkDBPath: Stored value for 'db_path' must refer to a filename ending with '.db'"
+		assert len(self._db_path.name) > 3, "ConnectionManager::_checkDBPath: Stored value for 'db_path' must refer to a filename of length > 3"
+
+		# Make sure the file exists
+		assert exists(self._db_path.parent) == True, "ConnectionManager::_checkDBPath: Stored value for 'db_path' must refer to a filename in an existing folder"
+
+		# Connect to the db file and create a cursor
+		self._db_connection = connect(self._db_path)
+		self._db_cursor = self._db_connection.cursor()
+
+	### Define functions which are frequently used to verify database information ###
+	def checkTableName(self, table_name:str = None, exists_flag:bool = True) -> list:
+		# Verify that the table is (or isn't) present in the given db file (without checking existence of the db file), returns the list of table names
+		# Only proceed if the connection is active
+		assert self._active_flag == True, "ConnectionManager::checkTableName: Only able to commit changes to the db file when the connection is active"
+
+		# Make sure that the table name is valid (if needed)
+		if table_name is not None:
+			assert type(table_name) == str, "ConnectionManager::checkTableName: If provided, value for 'table_name' must be a str object"
+			assert len(table_name) > 0, "ConnectionManager::checkTableName: If provided, value for 'table_name' must be a non-empty string"
+
+		# Fetch all tables in the database
+		table_names_query = "SELECT name FROM sqlite_master WHERE type = 'table';"
+		table_names_result = self._db_cursor.execute(table_names_query).fetchall()
+		table_names = [value[0] for value in table_names_result]
+
+		# Handle the various cases (if needed)
+		if table_name is not None:
+			if exists_flag == True:
+				# Make sure the given table exists in the database
+				assert table_name in table_names, "ConnectionManager::checkTableName: Provided value for 'table_name' doesn't correspond to an existing table in the db file (when it should)"
+			else:
+				# Make sure the given table doesn't exist in the database
+				assert table_name not in table_names, "ConnectionManager::checkTableName: Provided value for 'table_name' corresponds to an existing table in the db file (when it shouldn't)"
+
+		# Return the results
+		return table_names
+
+	def checkColumnName(self, table_name:str, column_name:str = None, exists_flag:bool = True) -> list:
+		# Verify that the column name is (or isn't) present in the given table of the given db file (without checking existence of the db file or table), returns a list of column names
+		# Only proceed if the connection is active
+		assert self._active_flag == True, "ConnectionManager::checkColumnName: Only able to commit changes to the db file when the connection is active"
+
+		# Make sure that the column name is valid (if needed)
+		if column_name is not None:
+			assert type(column_name) == str, "ConnectionManager::checkColumnName: If provided, value for 'column_name' must be a str object"
+			assert len(column_name) > 0, "ConnectionManager::checkColumnName: If provided, value for 'column_name' must be a non-empty string"
+
+		# Fetch all column names in the table
+		column_names_query = "SELECT name FROM PRAGMA_TABLE_INFO('" + table_name + "');"
+		column_names_result = self._db_cursor.execute(column_names_query).fetchall()
+		column_names = [value[0] for value in column_names_result]
+
+		# Handle the various cases (if needed)
+		if column_name is not None:
+			if exists_flag == True:
+				# Make sure the given column exists in the table
+				assert column_name in column_names, "ConnectionManager::checkColumnName: Provided value for 'column_name' doesn't correspond to an existing column in requested table (when it should)"
+			else:
+				# Make sure the given column doesn't exist in the table
+				assert column_name not in column_names, "ConnectionManager::checkColumnName: Provided value for 'column_name' corresponds to an existing column in requested table (when it shouldn't)"
+
+		# Return the results
+		return column_names
+
+	def checkRowCount(self, table_name:str, min_count:int = None) -> int:
+		# Verify that the row count in the given table of the given db file is above the threshold (without checking existence of the db file or table), returns the number of rows
+		# Only proceed if the connection is active
+		assert self._active_flag == True, "ConnectionManager::checkRowCount: Only able to commit changes to the db file when the connection is active"
+
+		# Make sure that the minimum row count is valid (if needed)
+		if min_count is not None:
+			assert type(min_count) == int, "ConnectionManager::checkRowCount: If provided, value for 'row_count' must be an int object"
+			assert min_count >= 0, "ConnectionManager::checkRowCount: If provided, value for 'row_count' must be non-negative"
+
+		# Fetch the number of rows from this table
+		row_count_query = "SELECT COUNT(*) FROM '" + table_name + "';"
+		row_count_result = self._db_cursor.execute(row_count_query).fetchone()
+		row_count = row_count_result[0]
+
+		# Check that the row count is large enough (if needed)
+		if min_count is not None:
+			assert row_count >= min_count, "ConnectionManager::checkRowCount: Relevant table doesn't have a row count >= the provided threshold"
+
+		# Return the results
+		return row_count
+
+	#### Define function which returns internally stored values ###
+	def getActiveFlag(self) -> bool:
+		# Return the active flag
+		return self._active_flag
+
+	def getBufferSize(self) -> int:
+		# Return the current buffer size
+		return self._buffer_size
+
+	def getConnection(self) -> Connection:
+		# Return the db file connection
+		return self._db_connection
+
+	def getCursor(self) -> Cursor:
+		# Return the db file cursor
+		return self._db_cursor
+
+	### Define function for executing provided queries ###
+	def execute(self, query:str, iterate_flag:bool) -> Cursor:
+		# Execute the given query and handle buffer behavior (if needed)
+		# Only proceed if the connection is active
+		assert self._active_flag == True, "ConnectionManager::execute: Only able to commit changes to the db file when the connection is active"
+
+		# Execute the query using the cursor
+		self._db_cursor.execute(query)
+
+		# Update the buffer size counter and commit changes (if needed)
+		if iterate_flag == True:
+			self._buffer_size += 1
+			if self._buffer_size >= self._max_buffer_size:
+				self.commit()
+
+		# Return the cursor so that information can be fetched externally
+		return self._db_cursor
+
+	### Define function for manually commiting changes ###
+	def commit(self):
+		# Commit any outstanding changes in the buffer and reset the buffer size
+		# Only proceed if the connection is active
+		assert self._active_flag == True, "ConnectionManager::commit: Only able to commit changes to the db file when the connection is active"
+
+		# Commit the changes and reset the counter
+		if self._buffer_size > 0:
+			self._db_connection.commit()
+			self._buffer_size = 0
+
+	### Define function to close the
+	def close(self):
+		# Close the connection to the db file after commiting any outstanding changes
+		# Only proceed if the connection is active
+		assert self._active_flag == True, "ConnectionManager::close: Only able to close the connection when the connection is active"
+
+		# Commit any changes in the buffer
+		self.commit()
+
+		# Close the db file connection
+		db_connection.close()
+
+		# Indicate that the connection is no longer active
+		self._active_flag = False
 
 
 ##########################################################################################
 ### Define functions for adding and deleting tables in a db file at the given location ###
 ##########################################################################################
-def addTable(db_path:Union[PosixPath, WindowsPath], table_name:str, column_names:list, column_types:list, replace_flag:bool = True):
+def addTable(connection_manager:ConnectionManager, table_name:str, column_names:list, column_types:list, replace_flag:bool = True):
 	# Add a table to the given db file (or replaces an existing table with an empty one if needed)
-	# Verify the inputs which use common functions
-	db_connection, db_cursor = _checkDBPath(db_path = db_path)
-	if replace_flag == False:
-		_checkTableName(db_cursor = db_cursor, table_name = table_name, exists_flag = False)
+	# Verify the provided connection manager input
+	assert type(connection_manager) == ConnectionManager, "addTable: Provided value for 'connection_manager' must be a ConnectionManager object"
+	assert connection_manager.getActiveFlag() == True, "addTable: Provided value for 'connection_manager' must represent an active connection to a db file"
 	
 	# Verify any additional inputs
+	# Table replace flag and table name
+	assert type(replace_flag) == bool, "addTable: Provided value for 'replace_flag' must be a bool object"
+	if replace_flag == False:
+		connection_manager.checkTableName(table_name = table_name, exists_flag = False)
 	# Column names
 	assert type(column_names) == list, "addTable: Provided value for 'column_names' must be a list object"
 	assert len(column_names) > 0, "addTable: Provided value for 'column_names' must be a non-empty list"
@@ -135,16 +239,14 @@ def addTable(db_path:Union[PosixPath, WindowsPath], table_name:str, column_names
 	assert type(column_types) == list, "addTable: Provided value for 'column_types' must be a list object"
 	assert len(column_types) == len(column_names), "addTable: Provided value for 'column_names' must be a list of length equal to that of 'column_names'"
 	assert isListWithStringEntries(column_types, allow_empty_flag = False) == True, "addTable: Provided value for 'column_types' must be a list of non-empty str objects"
-	# Replace table flag
-	assert type(replace_flag) == bool, "addTable: Provided value for 'replace_flag' must be a bool object"
 	
 	# Verify that the provided column types are valid
 	for column_type in column_types:
 		assert column_type in ALLOWED_COLUMN_TYPES, "addTable: Provided value for 'column_types' must contain entries only from the following list:" + str(ALLOWED_COLUMN_TYPES)
 	
-	# Drop the table from the db file (if needed)
+	# Drop the table from the db file using the connection manager (if needed)
 	drop_table_query = "DROP TABLE IF EXISTS '" + table_name + "';"
-	db_cursor.execute(drop_table_query)
+	connection_manager.execute(query = drop_table_query, iterate_flag = True)
 	
 	# Create the command for an empty version of the needed table
 	create_table_query = "CREATE TABLE '" + table_name + "' (" + "\n"
@@ -152,145 +254,141 @@ def addTable(db_path:Union[PosixPath, WindowsPath], table_name:str, column_names
 		create_table_query += "\t" + column_names[col_index] + " " + column_types[col_index]
 		create_table_query += ",\n" if col_index < len(column_names) - 1 else "\n);"
 			
-	# Execute the command
-	db_cursor.execute(create_table_query)
-	db_connection.commit()
-	
-	# Close the db file connection
-	db_connection.close()
+	# Execute the command using the connection manager
+	connection_manager.execute(query = create_table_query, iterate_flag = True)
 		
-def deleteTable(db_path:Union[PosixPath, WindowsPath], table_name:str):
+def deleteTable(connection_manager:ConnectionManager, table_name:str):
 	# Delete an existing table from the given db file
-	# Verify the inputs which use common functions
-	db_connection, db_cursor = _checkDBPath(db_path = db_path)
-	_checkTableName(db_cursor = db_cursor, table_name = table_name)
+	# Verify the provided connection manager input
+	assert type(connection_manager) == ConnectionManager, "deleteTable: Provided value for 'connection_manager' must be a ConnectionManager object"
+	assert connection_manager.getActiveFlag() == True, "deleteTable: Provided value for 'connection_manager' must represent an active connection to a db file"
+
+	# Check that the provided table exists using the connection manager
+	connection_manager.checkTableName(table_name = table_name)
 	
-	# Drop the table from the database
+	# Drop the table from the database using the connection manager
 	drop_table_query = "DROP TABLE " + table_name + ";"
-	db_cursor.execute(drop_table_query)
-	db_connection.commit()
-	
-	# Close the db file connection
-	db_connection.close()
+	connection_manager.execute(query = drop_table_query, iterate_flag = True)
 	
 
 #########################################################################
 ### Define functions for reading from a db file at the given location ###
 #########################################################################
-def getExistingTables(db_path:Union[PosixPath, WindowsPath]) -> list:
+def getExistingTables(connection_manager:ConnectionManager) -> list:
 	# Read the list of tables which currently exist in the given db file
-	# Verify the inputs which use common functions
-	db_connection, db_cursor = _checkDBPath(db_path = db_path)
+	# Verify the provided connection manager input
+	assert type(connection_manager) == ConnectionManager, "getExistingTables: Provided value for 'connection_manager' must be a ConnectionManager object"
+	assert connection_manager.getActiveFlag() == True, "getExistingTables: Provided value for 'connection_manager' must represent an active connection to a db file"
 	
-	# Fetch all tables in the db file
-	table_names = _checkTableName(db_cursor = db_cursor)
-	
-	# Close the db file connection
-	db_connection.close()
+	# Fetch all tables in the db file using the connection manager
+	table_names = connection_manager.checkTableName()
 	
 	# Return the results
 	return table_names
 	
-def getColumnNames(db_path:Union[PosixPath, WindowsPath], table_name:str) -> list:
+def getColumnNames(connection_manager:ConnectionManager, table_name:str) -> list:
 	# Read the column names from the needed table in the given db file
-	# Verify the inputs which use common functions
-	db_connection, db_cursor = _checkDBPath(db_path = db_path)
-	_checkTableName(db_cursor = db_cursor, table_name = table_name)
+	# Verify the provided connection manager input
+	assert type(connection_manager) == ConnectionManager, "getColumnNames: Provided value for 'connection_manager' must be a ConnectionManager object"
+	assert connection_manager.getActiveFlag() == True, "getColumnNames: Provided value for 'connection_manager' must represent an active connection to a db file"
+
+	# Verify that the needed table is present using the connection manager
+	connection_manager.checkTableName(table_name = table_name)
 	
-	# Fetch all column names from this table
-	column_names = _checkColumnName(db_cursor = db_cursor, table_name = table_name)
-	
-	# Close the db file connection
-	db_connection.close()
+	# Fetch all column names from this table using the connection manager
+	column_names = connection_manager.checkColumnName(table_name = table_name)
 	
 	# Return the results
 	return column_names
 	
-def getColumnTypes(db_path:Union[PosixPath, WindowsPath], table_name:str) -> list:
+def getColumnTypes(connection_manager:ConnectionManager, table_name:str) -> list:
 	# Read the column types from the needed table in the given db file
-	# Verify the inputs which use common functions
-	db_connection, db_cursor = _checkDBPath(db_path = db_path)
-	_checkTableName(db_cursor = db_cursor, table_name = table_name)
+	# Verify the provided connection manager input
+	assert type(connection_manager) == ConnectionManager, "getColumnTypes: Provided value for 'connection_manager' must be a ConnectionManager object"
+	assert connection_manager.getActiveFlag() == True, "getColumnTypes: Provided value for 'connection_manager' must represent an active connection to a db file"
+
+	# Verify that the needed table is present using the connection manager
+	connection_manager.checkTableName(table_name = table_name)
 	
-	# Fetch all column types from this table
+	# Fetch all column types from this table using the connection manager
 	column_types_query = "SELECT type FROM PRAGMA_TABLE_INFO('" + table_name + "');"
-	column_types_result = db_cursor.execute(column_types_query).fetchall()
+	column_types_result = connection_manager.execute(query = column_types_query, iterate_flag = False).fetchall()
 	
 	# Convert the result to the needed format
 	column_types = [value[0] for value in column_types_result]
 	
-	# Close the db file connection
-	db_connection.close()
-	
 	# Return the results
 	return column_types
 	
-def getRowCount(db_path:Union[PosixPath, WindowsPath], table_name:str) -> int:
+def getRowCount(connection_manager:ConnectionManager, table_name:str) -> int:
 	# Read the number of rows from the needed table in the given db file
-	# Verify the inputs which use common functions
-	db_connection, db_cursor = _checkDBPath(db_path = db_path)
-	_checkTableName(db_cursor = db_cursor, table_name = table_name)
+	# Verify the provided connection manager input
+	assert type(connection_manager) == ConnectionManager, "getRowCount: Provided value for 'connection_manager' must be a ConnectionManager object"
+	assert connection_manager.getActiveFlag() == True, "getRowCount: Provided value for 'connection_manager' must represent an active connection to a db file"
+
+	# Verify that the needed table is present using the connection manager
+	connection_manager.checkTableName(table_name = table_name)
 	
-	# Fetch the number of rows from this table
-	row_count = _checkRowCount(db_cursor = db_cursor, table_name = table_name)
-	
-	# Close the db file connection
-	db_connection.close()
+	# Fetch the number of rows from this table using the connection manager
+	row_count = connection_manager.checkRowCount(table_name = table_name)
 	
 	# Return the results
 	return row_count
 
-def readTable(db_path:Union[PosixPath, WindowsPath], table_name:str) -> dict:
+def readTable(connection_manager:ConnectionManager, table_name:str) -> dict:
 	# Read the needed table from the given db file
-	# Verify the inputs which use common functions
-	db_connection, db_cursor = _checkDBPath(db_path = db_path)
-	_checkTableName(db_cursor = db_cursor, table_name = table_name)
+	# Verify the provided connection manager input
+	assert type(connection_manager) == ConnectionManager, "readTable: Provided value for 'connection_manager' must be a ConnectionManager object"
+	assert connection_manager.getActiveFlag() == True, "readTable: Provided value for 'connection_manager' must represent an active connection to a db file"
+
+	# Verify that the needed table is present using the connection manager
+	connection_manager.checkTableName(table_name = table_name)
 	
-	# Fetch the column names and number of rows from this table
-	column_names = _checkColumnName(db_cursor = db_cursor, table_name = table_name)
-	row_count = _checkRowCount(db_cursor = db_cursor, table_name = table_name)
+	# Fetch the column names and number of rows from this table using the connection manager
+	column_names = connection_manager.checkColumnName(table_name = table_name)
+	row_count = connection_manager.checkRowCount(table_name = table_name)
 	
-	# Read the information from the db file
+	# Read the information from the db file using the connection manager
 	read_table_query = "SELECT * FROM '" + table_name + "';"
-	read_table_result = db_cursor.execute(read_table_query).fetchall()
+	read_table_result = connection_manager.execute(query = read_table_query, iterate_flag = False).fetchall()
 	
 	# Convert the result to the needed format
 	read_table = {}
 	for col_index in range(len(column_names)):
 		read_table[column_names[col_index]] = [read_table_result[row_index][col_index] for row_index in range(row_count)]
 	
-	# Close the db file connection
-	db_connection.close()
-	
 	# Return the results
 	return read_table
 	
-def readColumn(db_path:Union[PosixPath, WindowsPath], table_name:str, column_name:str) -> list:
+def readColumn(connection_manager:ConnectionManager, table_name:str, column_name:str) -> list:
 	# Read the needed column from the given table in the given db file
-	# Verify the inputs which use common functions
-	db_connection, db_cursor = _checkDBPath(db_path = db_path)
-	_checkTableName(db_cursor = db_cursor, table_name = table_name)
-	_checkColumnName(db_cursor = db_cursor, table_name = table_name, column_name = column_name)
+	# Verify the provided connection manager input
+	assert type(connection_manager) == ConnectionManager, "readColumn: Provided value for 'connection_manager' must be a ConnectionManager object"
+	assert connection_manager.getActiveFlag() == True, "readColumn: Provided value for 'connection_manager' must represent an active connection to a db file"
+
+	# Verify that the needed table and column name are present using the connection manager
+	connection_manager.checkTableName(table_name = table_name)
+	connection_manager.checkColumnName(table_name = table_name, column_name = column_name)
 	
-	# Read the information from the db file
+	# Read the information from the db file using the connection manager
 	read_column_query = "SELECT " + column_name + " FROM '" + table_name + "';"
-	read_column_result = db_cursor.execute(read_column_query).fetchall()
+	read_column_result = connection_manager.execute(query = read_column_query, iterate_flag = False).fetchall()
 	
 	# Convert the result to the needed format
 	read_column = [value[0] for value in read_column_result]
 	
-	# Close the db file connection
-	db_connection.close()
-	
 	# Return the results
 	return read_column
 	
-def readRow(db_path:Union[PosixPath, WindowsPath], table_name:str, row_index:int) -> list:
+def readRow(connection_manager:ConnectionManager, table_name:str, row_index:int) -> list:
 	# Read the needed row from the given table in the given db file
-	# Verify the inputs which use common functions
-	db_connection, db_cursor = _checkDBPath(db_path = db_path)
-	_checkTableName(db_cursor = db_cursor, table_name = table_name)
-	row_count = _checkRowCount(db_cursor = db_cursor, table_name = table_name, min_count = 1)
+	# Verify the provided connection manager input
+	assert type(connection_manager) == ConnectionManager, "readRow: Provided value for 'connection_manager' must be a ConnectionManager object"
+	assert connection_manager.getActiveFlag() == True, "readRow: Provided value for 'connection_manager' must represent an active connection to a db file"
+
+	# Verify that the needed table is present at that it is non-empty using the connection manager
+	connection_manager.checkTableName(table_name = table_name)
+	row_count = connection_manager.checkRowCount(table_name = table_name, min_count = 1)
 	
 	# Verify any additional inputs
 	assert type(row_index) == int, "readRow: Provided value for 'row_index' must be an int object"
@@ -298,26 +396,28 @@ def readRow(db_path:Union[PosixPath, WindowsPath], table_name:str, row_index:int
 	# Wrap the row index around to be in a valid range
 	row_index = row_index % row_count
 	
-	# Read the information from the db file
+	# Read the information from the db file using the connection manager
 	read_row_query = "SELECT * FROM '" + table_name + "' LIMIT 1 OFFSET " + str(row_index) + ";"
-	read_row_result = db_cursor.execute(read_row_query).fetchone()
+	read_row_result = connection_manager.execute(query = read_row_query, iterate_flag = False).fetchone()
 	
 	# Convert the result to the needed format
 	read_row = list(read_row_result)
-		
-	# Close the db file connection
-	db_connection.close()
 	
 	# Return the results
 	return read_row
 	
-def readEntry(db_path:Union[PosixPath, WindowsPath], table_name:str, column_name:str, row_index:int) -> Any:
+def readEntry(connection_manager:ConnectionManager, table_name:str, column_name:str, row_index:int) -> Any:
 	# Read the needed entry at a given row and column from the given table in the given db file
-	# Verify the inputs which use common functions
-	db_connection, db_cursor = _checkDBPath(db_path = db_path)
-	_checkTableName(db_cursor = db_cursor, table_name = table_name)
-	_checkColumnName(db_cursor = db_cursor, table_name = table_name, column_name = column_name)
-	row_count = _checkRowCount(db_cursor = db_cursor, table_name = table_name, min_count = 1)
+	# Verify the provided connection manager input
+	assert type(connection_manager) == ConnectionManager, "readEntry: Provided value for 'connection_manager' must be a ConnectionManager object"
+	assert connection_manager.getActiveFlag() == True, "readEntry: Provided value for 'connection_manager' must represent an active connection to a db file"
+
+	# Verify that the needed table and column name are present using the connection manager
+	connection_manager.checkTableName(table_name = table_name)
+	connection_manager.checkColumnName(table_name = table_name, column_name = column_name)
+
+	# Get the row count for the table and make sure the table is non-empty using the connection manager
+	row_count = connection_manager.checkRowCount(table_name = table_name, min_count = 1)
 	
 	# Verify any additional inputs
 	assert type(row_index) == int, "readEntry: Provided value for 'row_index' must be an int object"
@@ -325,15 +425,12 @@ def readEntry(db_path:Union[PosixPath, WindowsPath], table_name:str, column_name
 	# Wrap the row index around to be in a valid range
 	row_index = row_index % row_count
 	
-	# Read the information from the db file
+	# Read the information from the db file using the connection manager
 	read_entry_query = "SELECT " + column_name + " FROM '" + table_name + "' LIMIT 1 OFFSET " + str(row_index) + ";"
-	read_entry_result = db_cursor.execute(read_entry_query).fetchone()
+	read_entry_result = connection_manager.execute(query = read_entry_query, iterate_flag = False).fetchone()
 	
 	# Convert the result to the needed format
 	read_entry = read_entry_result[0]
-	
-	# Close the db file connection
-	db_connection.close()
 	
 	# Return the results
 	return read_entry
