@@ -44,7 +44,7 @@ connection_manager_decorator = private_attributes_dec("_active_flag",		# class v
 @connection_manager_decorator
 class ConnectionManager:
 	### Initialize the class ###
-	def __init__(self, db_path:Union[PosixPath, WindowsPath], max_buffer_size:int):
+	def __init__(self, db_path:Union[PosixPath, WindowsPath], max_buffer_size:int = 100):
 		# Verify the inputs
 		assert type(max_buffer_size) == int, "ConnectionManager::__init__: Provided value for 'max_buffer_size' must be an int object"
 		assert 1 <= max_buffer_size and max_buffer_size <= 1000, "ConnectionManager::__init__: Provided value for 'max_buffer_size' must be >= 1 and <= 1000"
@@ -172,13 +172,16 @@ class ConnectionManager:
 		return self._db_cursor
 
 	### Define function for executing provided queries ###
-	def execute(self, query:str, iterate_flag:bool) -> Cursor:
+	def execute(self, query:str, iterate_flag:bool, fill_values:list = None) -> Cursor:
 		# Execute the given query and handle buffer behavior (if needed)
 		# Only proceed if the connection is active
 		assert self._active_flag == True, "ConnectionManager::execute: Only able to commit changes to the db file when the connection is active"
 
 		# Execute the query using the cursor
-		self._db_cursor.execute(query)
+		if fill_values is None:
+			self._db_cursor.execute(query)
+		else:
+			self._db_cursor.execute(query, fill_values)
 
 		# Update the buffer size counter and commit changes (if needed)
 		if iterate_flag == True:
@@ -210,7 +213,7 @@ class ConnectionManager:
 		self.commit()
 
 		# Close the db file connection
-		db_connection.close()
+		self._db_connection.close()
 
 		# Indicate that the connection is no longer active
 		self._active_flag = False
@@ -386,7 +389,7 @@ def readRow(connection_manager:ConnectionManager, table_name:str, row_index:int)
 	assert type(connection_manager) == ConnectionManager, "readRow: Provided value for 'connection_manager' must be a ConnectionManager object"
 	assert connection_manager.getActiveFlag() == True, "readRow: Provided value for 'connection_manager' must represent an active connection to a db file"
 
-	# Verify that the needed table is present at that it is non-empty using the connection manager
+	# Verify that the needed table is present and that it is non-empty using the connection manager
 	connection_manager.checkTableName(table_name = table_name)
 	row_count = connection_manager.checkRowCount(table_name = table_name, min_count = 1)
 	
@@ -439,31 +442,33 @@ def readEntry(connection_manager:ConnectionManager, table_name:str, column_name:
 #######################################################################
 ### Define functions for writing to a db file at the given location ###
 #######################################################################
-def appendColumn(db_path:Union[PosixPath, WindowsPath], table_name:str, column_name:str, column_type:str):
+def appendColumn(connection_manager:ConnectionManager, table_name:str, column_name:str, column_type:str):
 	# Add a new empty column to the right of an existing table in the given db file
-	# Verify the inputs which use common functions
-	db_connection, db_cursor = _checkDBPath(db_path = db_path)
-	_checkTableName(db_cursor = db_cursor, table_name = table_name)
-	column_names = _checkColumnName(db_cursor = db_cursor, table_name = table_name, column_name = column_name, exists_flag = False)
+	# Verify the provided connection manager input
+	assert type(connection_manager) == ConnectionManager, "appendColumn: Provided value for 'connection_manager' must be a ConnectionManager object"
+	assert connection_manager.getActiveFlag() == True, "appendColumn: Provided value for 'connection_manager' must represent an active connection to a db file"
+
+	# Check that the needed table exists, the needed column doesn't exist, and get the existing column names using the connection manager
+	connection_manager.checkTableName(table_name = table_name)
+	column_names = connection_manager.checkColumnName(table_name = table_name, column_name = column_name, exists_flag = False)
 	
 	# Verify that the provided column types is valid
 	assert column_type in ALLOWED_COLUMN_TYPES, "appendColumn: Provided value for 'column_type' be an entry from the following list:" + str(ALLOWED_COLUMN_TYPES)
 	
-	# Add the new column to the db file
+	# Add the new column to the db file using the connection manager
 	add_column_query = "ALTER TABLE '" + table_name + "' ADD COLUMN " + column_name + " " + column_type + ";"
-	db_cursor.execute(add_column_query)
-	db_connection.commit()
+	connection_manager.execute(query = add_column_query, iterate_flag = True)
 	
-	# Close the db file connection
-	db_connection.close()
-	
-def appendRow(db_path:Union[PosixPath, WindowsPath], table_name:str):
+def appendRow(connection_manager:ConnectionManager, table_name:str):
 	# Add a new empty row to the bottom of an existing table in the given db file
-	# Verify the inputs which use common functions
-	db_connection, db_cursor = _checkDBPath(db_path = db_path)
-	_checkTableName(db_cursor = db_cursor, table_name = table_name)
-	column_names = _checkColumnName(db_cursor = db_cursor, table_name = table_name)
-	row_count = _checkRowCount(db_cursor = db_cursor, table_name = table_name)
+	# Verify the provided connection manager input
+	assert type(connection_manager) == ConnectionManager, "appendRow: Provided value for 'connection_manager' must be a ConnectionManager object"
+	assert connection_manager.getActiveFlag() == True, "appendRow: Provided value for 'connection_manager' must represent an active connection to a db file"
+
+	# Make sure that the needed table exists and fetch the column names and row count using the connection manager
+	connection_manager.checkTableName(table_name = table_name)
+	column_names = connection_manager.checkColumnName(table_name = table_name)
+	row_count = connection_manager.checkRowCount(table_name = table_name)
 	
 	# Create a list to be used as the new row for the table
 	new_row = [None for _ in range(len(column_names))]
@@ -473,34 +478,32 @@ def appendRow(db_path:Union[PosixPath, WindowsPath], table_name:str):
 	for col_index in range(len(column_names)):
 		write_row_query += "?, " if col_index < len(column_names) - 1 else "?);"
 			
-	# Execute the write query
-	db_cursor.execute(write_row_query, new_row)
-	db_connection.commit()
+	# Execute the write query using the connection manager
+	connection_manager.execute(query = write_row_query, fill_values = new_row, iterate_flag = True)
 	
-	# Close the db file connection
-	db_connection.close()
-	
-def deleteColumn(db_path:Union[PosixPath, WindowsPath], table_name:str, column_name:str):
+def deleteColumn(connection_manager:ConnectionManager, table_name:str, column_name:str):
 	# Delete a column from an existing table in the given db file
-	# Verify the inputs which use common functions
-	db_connection, db_cursor = _checkDBPath(db_path = db_path)
-	_checkTableName(db_cursor = db_cursor, table_name = table_name)
-	_checkColumnName(db_cursor = db_cursor, table_name = table_name, column_name = column_name)
+	# Verify the provided connection manager input
+	assert type(connection_manager) == ConnectionManager, "deleteColumn: Provided value for 'connection_manager' must be a ConnectionManager object"
+	assert connection_manager.getActiveFlag() == True, "deleteColumn: Provided value for 'connection_manager' must represent an active connection to a db file"
+
+	# Verify that the needed table and column name are present using the connection manager
+	connection_manager.checkTableName(table_name = table_name)
+	connection_manager.checkColumnName(table_name = table_name, column_name = column_name)
 	
-	# Delete the needed column from the db file
+	# Delete the needed column from the db file using the connection manager
 	delete_column_query = "ALTER TABLE '" + table_name + "' DROP COLUMN " + column_name + ";"
-	db_cursor.execute(delete_column_query)
-	db_connection.commit()
+	connection_manager.execute(query = delete_column_query, iterate_flag = True)
 	
-	# Close the db file connection
-	db_connection.close()
-	
-def deleteRow(db_path:Union[PosixPath, WindowsPath], table_name:str, row_index:int):
+def deleteRow(connection_manager:ConnectionManager, table_name:str, row_index:int):
 	# Delete a row from an existing table in the given db file and update the 'row_index' column
-	# Verify the inputs which use common functions
-	db_connection, db_cursor = _checkDBPath(db_path = db_path)
-	_checkTableName(db_cursor = db_cursor, table_name = table_name)
-	row_count = _checkRowCount(db_cursor = db_cursor, table_name = table_name, min_count = 1)
+	# Verify the provided connection manager input
+	assert type(connection_manager) == ConnectionManager, "deleteRow: Provided value for 'connection_manager' must be a ConnectionManager object"
+	assert connection_manager.getActiveFlag() == True, "deleteRow: Provided value for 'connection_manager' must represent an active connection to a db file"
+
+	# Verify that the needed table is present and that it is non-empty using the connection manager
+	connection_manager.checkTableName(table_name = table_name)
+	row_count = connection_manager.checkRowCount(table_name = table_name, min_count = 1)
 	
 	# Verify any additional inputs
 	assert type(row_index) == int, "deleteRow: Provided value for 'row_index' must be an int object"
@@ -508,21 +511,26 @@ def deleteRow(db_path:Union[PosixPath, WindowsPath], table_name:str, row_index:i
 	# Wrap the row index around to be in a valid range
 	row_index = row_index % row_count
 	
-	# Delete the needed row from the db file
-	delete_row_query = "DELETE FROM '" + table_name + "' LIMIT 1 OFFSET " + str(row_index) + ";"
-	db_cursor.execute(delete_row_query)
-	db_connection.commit()
+	# Delete the needed row from the db file using the connection manager
+	# Initialize the query
+	delete_row_query = "DELETE FROM '" + table_name + "' "
+	# Add a sub-query to allow for use of LIMIT and OFFSET
+	delete_row_query += "WHERE rowid IN (SELECT rowid FROM '" + table_name + "' LIMIT 1 OFFSET " + str(row_index) + ");"
+	# Execute the query using the connection manager
+	connection_manager.execute(query = delete_row_query, iterate_flag = True)
 	
-	# Close the db file connection
-	db_connection.close()
-	
-def replaceColumn(db_path:Union[PosixPath, WindowsPath], table_name:str, column_name:str, new_column:list):
+def replaceColumn(connection_manager:ConnectionManager, table_name:str, column_name:str, new_column:list):
 	# Replace an existing column with new values in an existing table in the given db file
-	# Verify the inputs which use common functions
-	db_connection, db_cursor = _checkDBPath(db_path = db_path)
-	_checkTableName(db_cursor = db_cursor, table_name = table_name)
-	_checkColumnName(db_cursor = db_cursor, table_name = table_name, column_name = column_name)
-	row_count = _checkRowCount(db_cursor = db_cursor, table_name = table_name, min_count = 1)
+	# Verify the provided connection manager input
+	assert type(connection_manager) == ConnectionManager, "replaceColumn: Provided value for 'connection_manager' must be a ConnectionManager object"
+	assert connection_manager.getActiveFlag() == True, "replaceColumn: Provided value for 'connection_manager' must represent an active connection to a db file"
+
+	# Verify that the needed table and column name are present using the connection manager
+	connection_manager.checkTableName(table_name = table_name)
+	connection_manager.checkColumnName(table_name = table_name, column_name = column_name)
+
+	# Get the row count for the table and make sure the table is non-empty using the connection manager
+	row_count = connection_manager.checkRowCount(table_name = table_name, min_count = 1)
 	
 	# Verify any additional inputs
 	assert type(new_column) == list, "replaceColumn: Provided value for 'new_column' must be a list object"
@@ -534,22 +542,21 @@ def replaceColumn(db_path:Union[PosixPath, WindowsPath], table_name:str, column_
 		replace_entry_query = "UPDATE '" + table_name + "' SET " + column_name + " = ? "
 		replace_entry_query += "WHERE rowid IN (SELECT rowid FROM '" + table_name + "' LIMIT 1 OFFSET " + str(row_index) + ");"
 				
-		# Execute the write query
-		db_cursor.execute(replace_entry_query, (new_column[row_index],))
+		# Execute the write query using the connection manager
+		connection_manager.execute(query = replace_entry_query, fill_values = [new_column[row_index]], iterate_flag = True)
 	
-	# Commit the changes
-	db_connection.commit()
-	
-	# Close the db file connection
-	db_connection.close()
-	
-def replaceRow(db_path:Union[PosixPath, WindowsPath], table_name:str, row_index:int, new_row:list):
+def replaceRow(connection_manager:ConnectionManager, table_name:str, row_index:int, new_row:list):
 	# Replace an existing row with new values in an existing table in the given db file
-	# Verify the inputs which use common functions
-	db_connection, db_cursor = _checkDBPath(db_path = db_path)
-	_checkTableName(db_cursor = db_cursor, table_name = table_name)
-	column_names = _checkColumnName(db_cursor = db_cursor, table_name = table_name)
-	row_count = _checkRowCount(db_cursor = db_cursor, table_name = table_name, min_count = 1)
+	# Verify the provided connection manager input
+	assert type(connection_manager) == ConnectionManager, "replaceRow: Provided value for 'connection_manager' must be a ConnectionManager object"
+	assert connection_manager.getActiveFlag() == True, "replaceRow: Provided value for 'connection_manager' must represent an active connection to a db file"
+
+	# Verify that the needed table is present and fetch the column names using the connection manager
+	connection_manager.checkTableName(table_name = table_name)
+	column_names = connection_manager.checkColumnName(table_name = table_name)
+
+	# Get the row count for the table and make sure the table is non-empty using the connection manager
+	row_count = connection_manager.checkRowCount(table_name = table_name, min_count = 1)
 	
 	# Verify any additional inputs
 	assert type(row_index) == int, "replaceRow: Provided value for 'row_index' must be an int object"
@@ -569,20 +576,21 @@ def replaceRow(db_path:Union[PosixPath, WindowsPath], table_name:str, row_index:
 	# Add a sub-query to allow for use of LIMIT and OFFSET
 	replace_row_query += "WHERE rowid IN (SELECT rowid FROM '" + table_name + "' LIMIT 1 OFFSET " + str(row_index) + ");"
 			
-	# Execute the write query
-	db_cursor.execute(replace_row_query, new_row)
-	db_connection.commit()
+	# Execute the write query using the connection manager
+	connection_manager.execute(query = replace_row_query, fill_values = new_row, iterate_flag = True)
 	
-	# Close the db file connection
-	db_connection.close()
-	
-def replaceEntry(db_path:Union[PosixPath, WindowsPath], table_name:str, column_name:str, row_index:int, new_entry:Any):
+def replaceEntry(connection_manager:ConnectionManager, table_name:str, column_name:str, row_index:int, new_entry:Any):
 	# Replace an entry at the given row and column for an existing table in the given db file
-	# Verify the inputs which use common functions
-	db_connection, db_cursor = _checkDBPath(db_path = db_path)
-	_checkTableName(db_cursor = db_cursor, table_name = table_name)
-	column_names = _checkColumnName(db_cursor = db_cursor, table_name = table_name, column_name = column_name)
-	row_count = _checkRowCount(db_cursor = db_cursor, table_name = table_name, min_count = 1)
+	# Verify the provided connection manager input
+	assert type(connection_manager) == ConnectionManager, "replaceEntry: Provided value for 'connection_manager' must be a ConnectionManager object"
+	assert connection_manager.getActiveFlag() == True, "replaceEntry: Provided value for 'connection_manager' must represent an active connection to a db file"
+
+	# Check that the needed table exists, the needed column also exists, and get the existing column names using the connection manager
+	connection_manager.checkTableName(table_name = table_name)
+	column_names = connection_manager.checkColumnName(table_name = table_name, column_name = column_name)
+
+	# Get the row count for the table and make sure the table is non-empty using the connection manager
+	row_count = connection_manager.checkRowCount(table_name = table_name, min_count = 1)
 	
 	# Verify any additional inputs
 	assert type(row_index) == int, "replaceEntry: Provided value for 'row_index' must be an int object"
@@ -594,20 +602,21 @@ def replaceEntry(db_path:Union[PosixPath, WindowsPath], table_name:str, column_n
 	replace_entry_query = "UPDATE '" + table_name + "' SET " + column_name + " = ? "
 	replace_entry_query += "WHERE rowid IN (SELECT rowid FROM '" + table_name + "' LIMIT 1 OFFSET " + str(row_index) + ");"
 			
-	# Execute the write query
-	db_cursor.execute(replace_entry_query, (new_entry,))
-	db_connection.commit()
+	# Execute the write query using the connection manager
+	connection_manager.execute(query = replace_entry_query, fill_values = [new_entry], iterate_flag= True)
 	
-	# Close the db file connection
-	db_connection.close()
-	
-def swapRows(db_path:Union[PosixPath, WindowsPath], table_name:str, row_index_1:int, row_index_2:int):
+def swapRows(connection_manager:ConnectionManager, table_name:str, row_index_1:int, row_index_2:int):
 	# Swap two existing rows with each other's values in an existing table in the given db file
-	# Verify the inputs which use common functions
-	db_connection, db_cursor = _checkDBPath(db_path = db_path)
-	_checkTableName(db_cursor = db_cursor, table_name = table_name)
-	column_names = _checkColumnName(db_cursor = db_cursor, table_name = table_name)
-	row_count = _checkRowCount(db_cursor = db_cursor, table_name = table_name, min_count = 2)
+	# Verify the provided connection manager input
+	assert type(connection_manager) == ConnectionManager, "swapRows: Provided value for 'connection_manager' must be a ConnectionManager object"
+	assert connection_manager.getActiveFlag() == True, "swapRows: Provided value for 'connection_manager' must represent an active connection to a db file"
+
+	# Verify that the needed table is present and fetch the column names using the connection manager
+	connection_manager.checkTableName(table_name = table_name)
+	column_names = connection_manager.checkColumnName(table_name = table_name)
+
+	# Get the row count for the table and make sure the table has at least 2 rows using the connection manager
+	row_count = connection_manager.checkRowCount(table_name = table_name, min_count = 2)
 	
 	# Verify any additional inputs
 	assert type(row_index_1) == int, "swapRows: Provided value for 'row_index_1' must be an int object"
@@ -620,14 +629,14 @@ def swapRows(db_path:Union[PosixPath, WindowsPath], table_name:str, row_index_1:
 	# Make sure that the two row indices are different
 	assert row_index_1 != row_index_2, "swapRows: Provided values for 'row_index_1' and 'row_index_2' must represent different rows in the provided table"
 	
-	# Read the information on the 1st row from the db file
+	# Read the information on the 1st row from the db file using the connection manager
 	read_row_1_query = "SELECT * FROM '" + table_name + "' LIMIT 1 OFFSET " + str(row_index_1) + ";"
-	read_row_1_result = db_cursor.execute(read_row_1_query).fetchone()
+	read_row_1_result = connection_manager.execute(query = read_row_1_query, iterate_flag = False).fetchone()
 	read_row_1 = list(read_row_1_result)
 	
-	# Read the information on the 2nd row from the db file
+	# Read the information on the 2nd row from the db file using the connection manager
 	read_row_2_query = "SELECT * FROM '" + table_name + "' LIMIT 1 OFFSET " + str(row_index_2) + ";"
-	read_row_2_result = db_cursor.execute(read_row_2_query).fetchone()
+	read_row_2_result = connection_manager.execute(query = read_row_2_query, iterate_flag = False).fetchone()
 	read_row_2 = list(read_row_2_result)
 	
 	# Write the read 2nd row to the table's 1st row
@@ -639,8 +648,8 @@ def swapRows(db_path:Union[PosixPath, WindowsPath], table_name:str, row_index_1:
 		replace_row_1_query += ", " if col_index < len(column_names) - 1 else " "
 	# Add a sub-query to allow for use of LIMIT and OFFSET
 	replace_row_1_query += "WHERE rowid IN (SELECT rowid FROM '" + table_name + "' LIMIT 1 OFFSET " + str(row_index_1) + ");"
-	# Execute the query
-	db_cursor.execute(replace_row_1_query, read_row_2)
+	# Execute the query using the connection manager
+	connection_manager.execute(query = replace_row_1_query, fill_values = read_row_2, iterate_flag = True)
 		
 	# Write the read 1st row to the table's 2nd row
 	# Initialize the query
@@ -651,11 +660,5 @@ def swapRows(db_path:Union[PosixPath, WindowsPath], table_name:str, row_index_1:
 		replace_row_2_query += ", " if col_index < len(column_names) - 1 else " "
 	# Add a sub-query to allow for use of LIMIT and OFFSET
 	replace_row_2_query += "WHERE rowid IN (SELECT rowid FROM '" + table_name + "' LIMIT 1 OFFSET " + str(row_index_2) + ");"
-	# Execute the query
-	db_cursor.execute(replace_row_2_query, read_row_1)
-		
-	# Commit the changes
-	db_connection.commit()
-	
-	# Close the db file connection
-	db_connection.close()
+	# Execute the query using the connection manager
+	connection_manager.execute(query = replace_row_2_query, fill_values = read_row_1, iterate_flag = True)
