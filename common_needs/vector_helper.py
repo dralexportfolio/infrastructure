@@ -18,7 +18,7 @@ from type_helper import isNumeric
 # External modules
 from math import cos, pi, sin
 from multiprocessing import Pool
-from numpy import dot, random, uint8, zeros
+from numpy import dot, ndarray, random, uint8, zeros
 from numpy import max as np_max
 from numpy import min as np_min
 from os import cpu_count
@@ -32,32 +32,88 @@ from typing import Any, Tuple
 ### Define the 2-dimensional vector field class ###
 ###################################################
 # Define a wrapper function so that the class can use multiprocessing to compute vectors
-def _proxyComputeVector2D(payload:Tuple[Any, Tuple[int, int]]) -> Tuple[float, float]:
+def _proxyComputeVector2D(payload:Tuple[int, int, int, int, int, ndarray, ndarray, Any, ndarray, ndarray]) -> Tuple[float, float]:
 	# Allow for computation of all vectors in the field to be computed in parallel
-	# Extract the needed values
-	vector_field = payload[0]
-	input_pair = payload[1]
+	# Extract the needed values from the payload
+	row_index = payload[0]
+	col_index = payload[1]
+	n_rows = payload[2]
+	n_cols = payload[3]
+	n_base_vectors = payload[4]
+	all_base_vector_locations_row = payload[5]
+	all_base_vector_locations_col = payload[6]
+	softmax_normalizer = payload[7]
+	all_base_vectors_x = payload[8]
+	all_base_vectors_y = payload[9]
 
-	# Extract the row and column indices from the input pair
-	row_index = input_pair[0]
-	col_index = input_pair[1]
+	# Verify the inputs for row and column indices only (and just assume the remaining inputs are correct coming from the VectorField2D class)
+	assert type(row_index) == int, "_proxyComputeVector: Provided value for 'row_index' must be an int object"
+	assert type(col_index) == int, "_proxyComputeVector: Provided value for 'col_index' must be an int object"
+	assert 0 <= row_index and row_index < n_rows, "_proxyComputeVector: Provided value for 'row_index' must be >= 0 and < the number of rows in the field"
+	assert 0 <= col_index and col_index < n_cols, "_proxyComputeVector: Provided value for 'col_index' must be >= 0 and < the number of columns in the field"
 
-	# Evaluate the vector field at the given input pair
-	return vector_field.computeVector(row_index = row_index, col_index = col_index)
+	# Compute the squared distances from this point to each base location
+	all_squared_distances = zeros(n_base_vectors, dtype = float)
+	for base_vector_index in range(n_base_vectors):
+		delta_row = all_base_vector_locations_row[base_vector_index] - row_index
+		delta_col = all_base_vector_locations_col[base_vector_index] - col_index
+		all_squared_distances[base_vector_index] = delta_row**2 + delta_col**2
+
+	# Compute the weights using the softmax
+	all_weights = softmax(-all_squared_distances / softmax_normalizer**2)
+
+	# Compute the x-value and y-value of the vector
+	vector_x = dot(all_weights, all_base_vectors_x)
+	vector_y = dot(all_weights, all_base_vectors_y)
+
+	# Return the results
+	return (vector_x, vector_y)
 
 # Define a wrapper function so that the class can use multiprocessing to compute curl and divergence
-def _proxyComputeCurlDivergence2D(payload:Tuple[Any, Tuple[int, int]]) -> Tuple[float, float]:
+def _proxyComputeCurlDivergence2D(payload:Tuple[int, int, int, int, ndarray, ndarray]) -> Tuple[float, float]:
 	# Allow for computation of all curl and divergence values in the field to be computed in parallel
-	# Extract the needed values
-	vector_field = payload[0]
-	input_pair = payload[1]
+	# Extract the needed values from the payload
+	row_index = payload[0]
+	col_index = payload[1]
+	n_rows = payload[2]
+	n_cols = payload[3]
+	all_vectors_x = payload[4]
+	all_vectors_y = payload[5]
 
-	# Extract the row and column indices from the input pair
-	row_index = input_pair[0]
-	col_index = input_pair[1]
+	# Verify the inputs for row and column indices only (and just assume the remaining inputs are correct coming from the VectorField2D class)
+	assert type(row_index) == int, "_proxyComputeCurlDivergence2D: Provided value for 'row_index' must be an int object"
+	assert type(col_index) == int, "_proxyComputeCurlDivergence2D: Provided value for 'col_index' must be an int object"
+	assert 0 <= row_index and row_index < n_rows, "_proxyComputeCurlDivergence2D: Provided value for 'row_index' must be >= 0 and < the number of rows in the field"
+	assert 0 <= col_index and col_index < n_cols, "_proxyComputeCurlDivergence2D: Provided value for 'col_index' must be >= 0 and < the number of columns in the field"
 
-	# Evaluate the vector field at the given input pair
-	return vector_field.computeCurlDivergence(row_index = row_index, col_index = col_index)
+	# Numerically compute the vector field's derivatives with respect to x at this index pair
+	if col_index == 0:
+		d_vector_x_dx = all_vectors_x[row_index, col_index + 1] - all_vectors_x[row_index, col_index]
+		d_vector_y_dx = all_vectors_y[row_index, col_index + 1] - all_vectors_y[row_index, col_index]
+	elif col_index == n_cols - 1:
+		d_vector_x_dx = all_vectors_x[row_index, col_index] - all_vectors_x[row_index, col_index - 1]
+		d_vector_y_dx = all_vectors_y[row_index, col_index] - all_vectors_y[row_index, col_index - 1]
+	else:
+		d_vector_x_dx = (all_vectors_x[row_index, col_index + 1] - all_vectors_x[row_index, col_index - 1]) / 2
+		d_vector_y_dx = (all_vectors_y[row_index, col_index + 1] - all_vectors_y[row_index, col_index - 1]) / 2
+
+	# Numerically compute the vector field's derivatives with respect to y at this index pair
+	if row_index == 0:
+		d_vector_x_dy = all_vectors_x[row_index + 1, col_index] - all_vectors_x[row_index, col_index]
+		d_vector_y_dy = all_vectors_y[row_index + 1, col_index] - all_vectors_y[row_index, col_index]
+	elif row_index == n_rows - 1:
+		d_vector_x_dy = all_vectors_x[row_index, col_index] - all_vectors_x[row_index - 1, col_index]
+		d_vector_y_dy = all_vectors_y[row_index, col_index] - all_vectors_y[row_index - 1, col_index]
+	else:
+		d_vector_x_dy = (all_vectors_x[row_index + 1, col_index] - all_vectors_x[row_index - 1, col_index]) / 2
+		d_vector_y_dy = (all_vectors_y[row_index + 1, col_index] - all_vectors_y[row_index - 1, col_index]) / 2
+
+	# Compute the curl and divergence
+	curl = d_vector_y_dx - d_vector_x_dy
+	divergence = d_vector_x_dx + d_vector_y_dy
+
+	# Return the results
+	return (curl, divergence)
 
 # Create the decorator needed for making the attributes private
 vector_field_2d_decorator = private_attributes_dec("_all_base_vector_locations_col",	# class variables
@@ -205,31 +261,6 @@ class VectorField2D:
 		# Mark that the base vectors have been generated
 		self._base_vectors_generated_flag = True
 
-	def computeVector(self, row_index:int, col_index:int) -> Tuple[float, float]:
-		# Compute the vector at the given row and column indices
-		# Verify the inputs
-		assert type(row_index) == int, "VectorField2D::computeVector: Provided value for 'row_index' must be an int object"
-		assert type(col_index) == int, "VectorField2D::computeVector: Provided value for 'col_index' must be an int object"
-		assert 0 <= row_index and row_index < self._n_rows, "VectorField2D::computeVector: Provided value for 'row_index' must be >= 0 and < the number of rows in the field"
-		assert 0 <= col_index and col_index < self._n_cols, "VectorField2D::computeVector: Provided value for 'col_index' must be >= 0 and < the number of columns in the field"
-
-		# Compute the squared distances from this point to each base location
-		all_squared_distances = zeros(self._n_base_vectors, dtype = float)
-		for base_vector_index in range(self._n_base_vectors):
-			delta_row = self._all_base_vector_locations_row[base_vector_index] - row_index
-			delta_col = self._all_base_vector_locations_col[base_vector_index] - col_index
-			all_squared_distances[base_vector_index] = delta_row**2 + delta_col**2
-
-		# Compute the weights using the softmax
-		all_weights = softmax(-all_squared_distances / self._softmax_normalizer**2)
-
-		# Compute the x-value and y-value of the vector
-		vector_x = dot(all_weights, self._all_base_vectors_x)
-		vector_y = dot(all_weights, self._all_base_vectors_y)
-
-		# Return the results
-		return (vector_x, vector_y)
-
 	def computeRemainingVectors(self, softmax_normalizer:Any):
 		# Generate all other vectors in the vector field
 		# Only proceed if the base vectors have been generated
@@ -247,10 +278,20 @@ class VectorField2D:
 		self._softmax_normalizer = softmax_normalizer
 
 		# Create the input tuples for the process
+		# Create the tuple of shared information to pass as input every time
+		shared_info = (self._n_rows,
+					   self._n_cols,
+					   self._n_base_vectors,
+					   self._all_base_vector_locations_row,
+					   self._all_base_vector_locations_col,
+					   self._softmax_normalizer,
+					   self._all_base_vectors_x,
+					   self._all_base_vectors_y)
+		# Create the list of inputs used for each index pair
 		all_inputs = []
 		for row_index in range(self._n_rows):
 			for col_index in range(self._n_cols):
-				all_inputs.append((self, (row_index, col_index)))
+				all_inputs.append((row_index, col_index) + shared_info)
 
 		# Initialize a pool with the needed number of processes, run the computation in parallel, and end by closing the pool
 		pool = Pool(processes = max(cpu_count() - 1, 1))
@@ -261,52 +302,15 @@ class VectorField2D:
 		self._all_vectors_x = zeros((self._n_rows, self._n_cols), dtype = float)
 		self._all_vectors_y = zeros((self._n_rows, self._n_cols), dtype = float)
 		for index in range(self._n_rows * self._n_cols):
-			input_pair = all_inputs[index]
+			input_pair = all_inputs[index][:2]
 			output_pair = all_outputs[index]
-			self._all_vectors_x[input_pair[1][0], input_pair[1][1]] = output_pair[0]
-			self._all_vectors_y[input_pair[1][0], input_pair[1][1]] = output_pair[1]
+			self._all_vectors_x[input_pair[0], input_pair[1]] = output_pair[0]
+			self._all_vectors_y[input_pair[0], input_pair[1]] = output_pair[1]
 
 		# Mark that the remaining vectors have been computed
 		self._remaining_vectors_computed_flag = True
 
 	### Define functions for computing and displaying information about the vector field ###
-	def computeCurlDivergence(self, row_index:int, col_index:int) -> Tuple[float, float]:
-		# Compute the curl and divergence of the vector field at the given location
-		# Verify the inputs
-		assert type(row_index) == int, "VectorField2D::computeCurlDivergence: Provided value for 'row_index' must be an int object"
-		assert type(col_index) == int, "VectorField2D::computeCurlDivergence: Provided value for 'col_index' must be an int object"
-		assert 0 <= row_index and row_index < self._n_rows, "VectorField2D::computeCurlDivergence: Provided value for 'row_index' must be >= 0 and < the number of rows in the field"
-		assert 0 <= col_index and col_index < self._n_cols, "VectorField2D::computeCurlDivergence: Provided value for 'col_index' must be >= 0 and < the number of columns in the field"
-
-		# Numerically compute the vector field's derivatives with respect to x at this index pair
-		if col_index == 0:
-			d_vector_x_dx = self._all_vectors_x[row_index, col_index + 1] - self._all_vectors_x[row_index, col_index]
-			d_vector_y_dx = self._all_vectors_y[row_index, col_index + 1] - self._all_vectors_y[row_index, col_index]
-		elif col_index == self._n_cols - 1:
-			d_vector_x_dx = self._all_vectors_x[row_index, col_index] - self._all_vectors_x[row_index, col_index - 1]
-			d_vector_y_dx = self._all_vectors_y[row_index, col_index] - self._all_vectors_y[row_index, col_index - 1]
-		else:
-			d_vector_x_dx = (self._all_vectors_x[row_index, col_index + 1] - self._all_vectors_x[row_index, col_index - 1]) / 2
-			d_vector_y_dx = (self._all_vectors_y[row_index, col_index + 1] - self._all_vectors_y[row_index, col_index - 1]) / 2
-
-		# Numerically compute the vector field's derivatives with respect to y at this index pair
-		if row_index == 0:
-			d_vector_x_dy = self._all_vectors_x[row_index + 1, col_index] - self._all_vectors_x[row_index, col_index]
-			d_vector_y_dy = self._all_vectors_y[row_index + 1, col_index] - self._all_vectors_y[row_index, col_index]
-		elif row_index == self._n_rows - 1:
-			d_vector_x_dy = self._all_vectors_x[row_index, col_index] - self._all_vectors_x[row_index - 1, col_index]
-			d_vector_y_dy = self._all_vectors_y[row_index, col_index] - self._all_vectors_y[row_index - 1, col_index]
-		else:
-			d_vector_x_dy = (self._all_vectors_x[row_index + 1, col_index] - self._all_vectors_x[row_index - 1, col_index]) / 2
-			d_vector_y_dy = (self._all_vectors_y[row_index + 1, col_index] - self._all_vectors_y[row_index - 1, col_index]) / 2
-
-		# Compute the curl and divergence
-		curl = d_vector_y_dx - d_vector_x_dy
-		divergence = d_vector_x_dx + d_vector_y_dy
-
-		# Return the results
-		return (curl, divergence)
-
 	def computeAllCurlDivergence(self):
 		# Compute all curl and divergence values for the vector field
 		# Only proceed if all vectors have been generated
@@ -316,10 +320,16 @@ class VectorField2D:
 		self._curl_divergence_computed_flag = False
 
 		# Create the input tuples for the process
+		# Create the tuple of shared information to pass as input every time
+		shared_info = (self._n_rows,
+					   self._n_cols,
+					   self._all_vectors_x,
+					   self._all_vectors_y)
+		# Create the list of inputs used for each index pair
 		all_inputs = []
 		for row_index in range(self._n_rows):
 			for col_index in range(self._n_cols):
-				all_inputs.append((self, (row_index, col_index)))
+				all_inputs.append((row_index, col_index) + shared_info)
 
 		# Initialize a pool with the needed number of processes, run the computation in parallel, and end by closing the pool
 		pool = Pool(processes = max(cpu_count() - 1, 1))
@@ -330,10 +340,10 @@ class VectorField2D:
 		self._all_curls = zeros((self._n_rows, self._n_cols), dtype = float)
 		self._all_divergences = zeros((self._n_rows, self._n_cols), dtype = float)
 		for index in range(self._n_rows * self._n_cols):
-			input_pair = all_inputs[index]
+			input_pair = all_inputs[index][:2]
 			output_pair = all_outputs[index]
-			self._all_curls[input_pair[1][0], input_pair[1][1]] = output_pair[0]
-			self._all_divergences[input_pair[1][0], input_pair[1][1]] = output_pair[1]
+			self._all_curls[input_pair[0], input_pair[1]] = output_pair[0]
+			self._all_divergences[input_pair[0], input_pair[1]] = output_pair[1]
 
 		# Mark that the curl and divergence have been computed
 		self._curl_divergence_computed_flag = True
