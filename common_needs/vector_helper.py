@@ -28,85 +28,123 @@ from scipy.special import softmax
 from typing import Any, Tuple
 
 
-###################################################
-### Define the 2-dimensional vector field class ###
-###################################################
+##########################################################################################################
+### Define helper functions needed for running the 2-dimensional vector field computations in parallel ###
+##########################################################################################################
+# Define the global variables which will be needed for parallelization
+global_ALL_BASE_VECTOR_LOCATIONS_COL = None
+global_ALL_BASE_VECTOR_LOCATIONS_ROW = None
+global_ALL_BASE_VECTORS_X = None
+global_ALL_BASE_VECTORS_Y = None
+global_ALL_VECTORS_X = None
+global_ALL_VECTORS_Y = None
+global_N_BASE_VECTORS = None
+global_N_COLS = None
+global_N_ROWS = None
+global_SOFTMAX_NORMALIZER = None
+
+# Define the worker initializer for computing vectors
+def _initializeComputeVector2D(payload:Tuple[ndarray, ndarray, ndarray, ndarray, int, int, int, Any]):
+	# Store the vector field parameters needed for vector computation in the global scope
+	# Set the needed variables to be global in scope
+	global global_ALL_BASE_VECTOR_LOCATIONS_COL
+	global global_ALL_BASE_VECTOR_LOCATIONS_ROW
+	global global_ALL_BASE_VECTORS_X
+	global global_ALL_BASE_VECTORS_Y
+	global global_N_BASE_VECTORS
+	global global_N_COLS
+	global global_N_ROWS
+	global global_SOFTMAX_NORMALIZER
+
+	# Store the provided values in the global scope
+	global_ALL_BASE_VECTOR_LOCATIONS_COL = payload[0]
+	global_ALL_BASE_VECTOR_LOCATIONS_ROW = payload[1]
+	global_ALL_BASE_VECTORS_X = payload[2]
+	global_ALL_BASE_VECTORS_Y = payload[3]
+	global_N_BASE_VECTORS = payload[4]
+	global_N_COLS = payload[5]
+	global_N_ROWS = payload[6]
+	global_SOFTMAX_NORMALIZER = payload[7]
+
 # Define a wrapper function so that the class can use multiprocessing to compute vectors
-def _proxyComputeVector2D(payload:Tuple[int, int, int, int, int, ndarray, ndarray, Any, ndarray, ndarray]) -> Tuple[float, float]:
+def _proxyComputeVector2D(payload:Tuple[int, int]) -> Tuple[float, float]:
 	# Allow for computation of all vectors in the field to be computed in parallel
 	# Extract the needed values from the payload
 	row_index = payload[0]
 	col_index = payload[1]
-	n_rows = payload[2]
-	n_cols = payload[3]
-	n_base_vectors = payload[4]
-	all_base_vector_locations_row = payload[5]
-	all_base_vector_locations_col = payload[6]
-	softmax_normalizer = payload[7]
-	all_base_vectors_x = payload[8]
-	all_base_vectors_y = payload[9]
 
-	# Verify the inputs for row and column indices only (and just assume the remaining inputs are correct coming from the VectorField2D class)
+	# Verify the inputs for row and column indices only (and just assume global values are correct coming from the VectorField2D class)
 	assert type(row_index) == int, "_proxyComputeVector: Provided value for 'row_index' must be an int object"
 	assert type(col_index) == int, "_proxyComputeVector: Provided value for 'col_index' must be an int object"
-	assert 0 <= row_index and row_index < n_rows, "_proxyComputeVector: Provided value for 'row_index' must be >= 0 and < the number of rows in the field"
-	assert 0 <= col_index and col_index < n_cols, "_proxyComputeVector: Provided value for 'col_index' must be >= 0 and < the number of columns in the field"
+	assert 0 <= row_index and row_index < global_N_ROWS, "_proxyComputeVector: Provided value for 'row_index' must be >= 0 and < the number of rows in the field"
+	assert 0 <= col_index and col_index < global_N_COLS, "_proxyComputeVector: Provided value for 'col_index' must be >= 0 and < the number of columns in the field"
 
 	# Compute the squared distances from this point to each base location
-	all_squared_distances = zeros(n_base_vectors, dtype = float)
-	for base_vector_index in range(n_base_vectors):
-		delta_row = all_base_vector_locations_row[base_vector_index] - row_index
-		delta_col = all_base_vector_locations_col[base_vector_index] - col_index
+	all_squared_distances = zeros(global_N_BASE_VECTORS, dtype = float)
+	for base_vector_index in range(global_N_BASE_VECTORS):
+		delta_row = global_ALL_BASE_VECTOR_LOCATIONS_ROW[base_vector_index] - row_index
+		delta_col = global_ALL_BASE_VECTOR_LOCATIONS_COL[base_vector_index] - col_index
 		all_squared_distances[base_vector_index] = delta_row**2 + delta_col**2
 
 	# Compute the weights using the softmax
-	all_weights = softmax(-all_squared_distances / softmax_normalizer**2)
+	all_weights = softmax(-all_squared_distances / global_SOFTMAX_NORMALIZER**2)
 
 	# Compute the x-value and y-value of the vector
-	vector_x = dot(all_weights, all_base_vectors_x)
-	vector_y = dot(all_weights, all_base_vectors_y)
+	vector_x = dot(all_weights, global_ALL_BASE_VECTORS_X)
+	vector_y = dot(all_weights, global_ALL_BASE_VECTORS_Y)
 
 	# Return the results
 	return (vector_x, vector_y)
 
+# Define the worker initializer for computing curl and divergence
+def _initializeComputeCurlDivergence2D(payload:Tuple[ndarray, ndarray, int, int]):
+	# Store the vector field parameters needed for curl and divergence computation in the global scope
+	# Set the needed variables to be global in scope
+	global global_ALL_VECTORS_X
+	global global_ALL_VECTORS_Y
+	global global_N_COLS
+	global global_N_ROWS
+
+	# Store the provided values in the global scope
+	global_ALL_VECTORS_X = payload[0]
+	global_ALL_VECTORS_Y = payload[1]
+	global_N_COLS = payload[2]
+	global_N_ROWS = payload[3]
+
 # Define a wrapper function so that the class can use multiprocessing to compute curl and divergence
-def _proxyComputeCurlDivergence2D(payload:Tuple[int, int, int, int, ndarray, ndarray]) -> Tuple[float, float]:
+def _proxyComputeCurlDivergence2D(payload:Tuple[int, int]) -> Tuple[float, float]:
 	# Allow for computation of all curl and divergence values in the field to be computed in parallel
 	# Extract the needed values from the payload
 	row_index = payload[0]
 	col_index = payload[1]
-	n_rows = payload[2]
-	n_cols = payload[3]
-	all_vectors_x = payload[4]
-	all_vectors_y = payload[5]
 
-	# Verify the inputs for row and column indices only (and just assume the remaining inputs are correct coming from the VectorField2D class)
+	# Verify the inputs for row and column indices only (and just assume global values are correct coming from the VectorField2D class)
 	assert type(row_index) == int, "_proxyComputeCurlDivergence2D: Provided value for 'row_index' must be an int object"
 	assert type(col_index) == int, "_proxyComputeCurlDivergence2D: Provided value for 'col_index' must be an int object"
-	assert 0 <= row_index and row_index < n_rows, "_proxyComputeCurlDivergence2D: Provided value for 'row_index' must be >= 0 and < the number of rows in the field"
-	assert 0 <= col_index and col_index < n_cols, "_proxyComputeCurlDivergence2D: Provided value for 'col_index' must be >= 0 and < the number of columns in the field"
+	assert 0 <= row_index and row_index < global_N_ROWS, "_proxyComputeCurlDivergence2D: Provided value for 'row_index' must be >= 0 and < the number of rows in the field"
+	assert 0 <= col_index and col_index < global_N_COLS, "_proxyComputeCurlDivergence2D: Provided value for 'col_index' must be >= 0 and < the number of columns in the field"
 
 	# Numerically compute the vector field's derivatives with respect to x at this index pair
 	if col_index == 0:
-		d_vector_x_dx = all_vectors_x[row_index, col_index + 1] - all_vectors_x[row_index, col_index]
-		d_vector_y_dx = all_vectors_y[row_index, col_index + 1] - all_vectors_y[row_index, col_index]
-	elif col_index == n_cols - 1:
-		d_vector_x_dx = all_vectors_x[row_index, col_index] - all_vectors_x[row_index, col_index - 1]
-		d_vector_y_dx = all_vectors_y[row_index, col_index] - all_vectors_y[row_index, col_index - 1]
+		d_vector_x_dx = global_ALL_VECTORS_X[row_index, col_index + 1] - global_ALL_VECTORS_X[row_index, col_index]
+		d_vector_y_dx = global_ALL_VECTORS_Y[row_index, col_index + 1] - global_ALL_VECTORS_Y[row_index, col_index]
+	elif col_index == global_N_COLS - 1:
+		d_vector_x_dx = global_ALL_VECTORS_X[row_index, col_index] - global_ALL_VECTORS_X[row_index, col_index - 1]
+		d_vector_y_dx = global_ALL_VECTORS_Y[row_index, col_index] - global_ALL_VECTORS_Y[row_index, col_index - 1]
 	else:
-		d_vector_x_dx = (all_vectors_x[row_index, col_index + 1] - all_vectors_x[row_index, col_index - 1]) / 2
-		d_vector_y_dx = (all_vectors_y[row_index, col_index + 1] - all_vectors_y[row_index, col_index - 1]) / 2
+		d_vector_x_dx = (global_ALL_VECTORS_X[row_index, col_index + 1] - global_ALL_VECTORS_X[row_index, col_index - 1]) / 2
+		d_vector_y_dx = (global_ALL_VECTORS_Y[row_index, col_index + 1] - global_ALL_VECTORS_Y[row_index, col_index - 1]) / 2
 
 	# Numerically compute the vector field's derivatives with respect to y at this index pair
 	if row_index == 0:
-		d_vector_x_dy = all_vectors_x[row_index + 1, col_index] - all_vectors_x[row_index, col_index]
-		d_vector_y_dy = all_vectors_y[row_index + 1, col_index] - all_vectors_y[row_index, col_index]
-	elif row_index == n_rows - 1:
-		d_vector_x_dy = all_vectors_x[row_index, col_index] - all_vectors_x[row_index - 1, col_index]
-		d_vector_y_dy = all_vectors_y[row_index, col_index] - all_vectors_y[row_index - 1, col_index]
+		d_vector_x_dy = global_ALL_VECTORS_X[row_index + 1, col_index] - global_ALL_VECTORS_X[row_index, col_index]
+		d_vector_y_dy = global_ALL_VECTORS_Y[row_index + 1, col_index] - global_ALL_VECTORS_Y[row_index, col_index]
+	elif row_index == global_N_ROWS - 1:
+		d_vector_x_dy = global_ALL_VECTORS_X[row_index, col_index] - global_ALL_VECTORS_X[row_index - 1, col_index]
+		d_vector_y_dy = global_ALL_VECTORS_Y[row_index, col_index] - global_ALL_VECTORS_Y[row_index - 1, col_index]
 	else:
-		d_vector_x_dy = (all_vectors_x[row_index + 1, col_index] - all_vectors_x[row_index - 1, col_index]) / 2
-		d_vector_y_dy = (all_vectors_y[row_index + 1, col_index] - all_vectors_y[row_index - 1, col_index]) / 2
+		d_vector_x_dy = (global_ALL_VECTORS_X[row_index + 1, col_index] - global_ALL_VECTORS_X[row_index - 1, col_index]) / 2
+		d_vector_y_dy = (global_ALL_VECTORS_Y[row_index + 1, col_index] - global_ALL_VECTORS_Y[row_index - 1, col_index]) / 2
 
 	# Compute the curl and divergence
 	curl = d_vector_y_dx - d_vector_x_dy
@@ -115,6 +153,10 @@ def _proxyComputeCurlDivergence2D(payload:Tuple[int, int, int, int, ndarray, nda
 	# Return the results
 	return (curl, divergence)
 
+
+###################################################
+### Define the 2-dimensional vector field class ###
+###################################################
 # Create the decorator needed for making the attributes private
 vector_field_2d_decorator = private_attributes_dec("_all_base_vector_locations_col",	# class variables
 												   "_all_base_vector_locations_row",
@@ -277,24 +319,24 @@ class VectorField2D:
 		# Store the provided softmax normalizer value
 		self._softmax_normalizer = softmax_normalizer
 
-		# Create the input tuples for the process
-		# Create the tuple of shared information to pass as input every time
-		shared_info = (self._n_rows,
-					   self._n_cols,
-					   self._n_base_vectors,
-					   self._all_base_vector_locations_row,
-					   self._all_base_vector_locations_col,
-					   self._softmax_normalizer,
-					   self._all_base_vectors_x,
-					   self._all_base_vectors_y)
+		# Define the tuple of shared values needed by all workers
+		shared_info = ((self._all_base_vector_locations_col,
+						self._all_base_vector_locations_row,
+						self._all_base_vectors_x,
+						self._all_base_vectors_y,
+						self._n_base_vectors,
+						self._n_cols,
+						self._n_rows,
+						self._softmax_normalizer),)
+
 		# Create the list of inputs used for each index pair
 		all_inputs = []
 		for row_index in range(self._n_rows):
 			for col_index in range(self._n_cols):
-				all_inputs.append((row_index, col_index) + shared_info)
+				all_inputs.append((row_index, col_index))
 
 		# Initialize a pool with the needed number of processes, run the computation in parallel, and end by closing the pool
-		pool = Pool(processes = max(cpu_count() - 1, 1))
+		pool = Pool(processes = max(cpu_count() - 1, 1), initializer = _initializeComputeVector2D, initargs = shared_info)
 		all_outputs = pool.map(_proxyComputeVector2D, all_inputs)
 		pool.close()
 
@@ -302,7 +344,7 @@ class VectorField2D:
 		self._all_vectors_x = zeros((self._n_rows, self._n_cols), dtype = float)
 		self._all_vectors_y = zeros((self._n_rows, self._n_cols), dtype = float)
 		for index in range(self._n_rows * self._n_cols):
-			input_pair = all_inputs[index][:2]
+			input_pair = all_inputs[index]
 			output_pair = all_outputs[index]
 			self._all_vectors_x[input_pair[0], input_pair[1]] = output_pair[0]
 			self._all_vectors_y[input_pair[0], input_pair[1]] = output_pair[1]
@@ -319,20 +361,20 @@ class VectorField2D:
 		# Mark that needed information has not been handled
 		self._curl_divergence_computed_flag = False
 
-		# Create the input tuples for the process
-		# Create the tuple of shared information to pass as input every time
-		shared_info = (self._n_rows,
-					   self._n_cols,
-					   self._all_vectors_x,
-					   self._all_vectors_y)
+		# Define the tuple of shared values needed by all workers
+		shared_info = ((self._all_vectors_x,
+						self._all_vectors_y,
+						self._n_cols,
+						self._n_rows),)
+
 		# Create the list of inputs used for each index pair
 		all_inputs = []
 		for row_index in range(self._n_rows):
 			for col_index in range(self._n_cols):
-				all_inputs.append((row_index, col_index) + shared_info)
+				all_inputs.append((row_index, col_index))
 
 		# Initialize a pool with the needed number of processes, run the computation in parallel, and end by closing the pool
-		pool = Pool(processes = max(cpu_count() - 1, 1))
+		pool = Pool(processes = max(cpu_count() - 1, 1), initializer = _initializeComputeCurlDivergence2D, initargs = shared_info)
 		all_outputs = pool.map(_proxyComputeCurlDivergence2D, all_inputs)
 		pool.close()
 
@@ -340,7 +382,7 @@ class VectorField2D:
 		self._all_curls = zeros((self._n_rows, self._n_cols), dtype = float)
 		self._all_divergences = zeros((self._n_rows, self._n_cols), dtype = float)
 		for index in range(self._n_rows * self._n_cols):
-			input_pair = all_inputs[index][:2]
+			input_pair = all_inputs[index]
 			output_pair = all_outputs[index]
 			self._all_curls[input_pair[0], input_pair[1]] = output_pair[0]
 			self._all_divergences[input_pair[0], input_pair[1]] = output_pair[1]
