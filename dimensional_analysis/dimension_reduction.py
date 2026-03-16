@@ -32,9 +32,9 @@ def performPCA(raw_data_array:ndarray, normalize_flag:bool = False, center_vecto
 		assert np_min(weight_vector) >= 0, "performPCA: If provided, value for 'weight_vector' must have all non-negative entries"
 		assert np_max(weight_vector) > 0, "performPCA: If provided, value for 'weight_vector' must have at least one positive entry"
 	
-	# Extract the numbers of rows and columns in the data
-	n_rows = raw_data_array.shape[0]
-	n_cols = raw_data_array.shape[1]
+	# Extract the numbers of points and parameters in the data
+	n_points = raw_data_array.shape[0]
+	n_parameters = raw_data_array.shape[1]
 
 	# Compute the center vector as the center of mass of the data (if needed)
 	if center_vector is None:
@@ -42,29 +42,29 @@ def performPCA(raw_data_array:ndarray, normalize_flag:bool = False, center_vecto
 
 	# Set the weight vector to be an array of all 1's (if needed)
 	if weight_vector is None:
-		weight_vector = ones(n_rows, dtype = float)
+		weight_vector = ones(n_points, dtype = float)
 
-	# Create the square-root of the weight matrix as a sparse array (will be n_rows x n_rows)
+	# Create the square-root of the weight matrix as a sparse array (will be n_points x n_points)
 	sqrt_weight_array = diags(weight_vector**0.5)
 
-	# Shift the raw data so that the center is at the origin (will be n_rows x n_cols)
-	shifted_data_array = zeros((n_rows, n_cols), dtype = float)
-	for row_index in range(n_rows):
-		shifted_data_array[row_index, :] = raw_data_array[row_index, :] - center_vector
+	# Shift the raw data so that the center is at the origin (will be n_points x n_parameters)
+	shifted_data_array = zeros((n_points, n_parameters), dtype = float)
+	for point_index in range(n_points):
+		shifted_data_array[point_index, :] = raw_data_array[point_index, :] - center_vector
 
-	# Normalize the columns of the shifted data to have the same deviations (if needed) (will be n_rows x n_cols)
+	# Normalize the columns of the shifted data to have the same deviations (if needed) (will be n_points x n_parameters)
 	if normalize_flag == False:
 		# Don't normalize the array
 		normalized_data_array = shifted_data_array
 	else:
 		# Divide each column by the deviation of that column (if it is non-zero, otherwise will all be 0 because of shift)
-		normalized_data_array = zeros((n_rows, n_cols), dtype = float)
+		normalized_data_array = zeros((n_points, n_parameters), dtype = float)
 		all_deviations = std(shifted_data_array, axis = 0)
-		for col_index in range(n_cols):
-			if all_deviations[col_index] > 0:
-				normalized_data_array[:, col_index] = shifted_data_array[:, col_index] / all_deviations[col_index]
+		for parameter_index in range(n_parameters):
+			if all_deviations[parameter_index] > 0:
+				normalized_data_array[:, parameter_index] = shifted_data_array[:, parameter_index] / all_deviations[parameter_index]
 
-	# Weight the normalized data points according to the square-root weight array (will be n_rows x n_cols)
+	# Weight the normalized data points according to the square-root weight array (will be n_points x n_parameters)
 	# Note: numpy.matmul doesn't work with sparse matrices so use @ instead
 	weighted_data_array = sqrt_weight_array @ normalized_data_array
 
@@ -77,17 +77,17 @@ def performPCA(raw_data_array:ndarray, normalize_flag:bool = False, center_vecto
 
 	# Reorder the singular values and principal component vectors to match this decreasing order
 	# Initialize the needed storage
-	ordered_singular_values = zeros(n_cols, dtype = float)
-	ordered_principal_components = zeros((n_cols, n_cols), dtype = float)
+	ordered_singular_values = zeros(n_parameters, dtype = float)
+	ordered_principal_components = zeros((n_parameters, n_parameters), dtype = float)
 	# Insert the values in the needed order
-	for col_index in range(n_cols):
-		ordered_singular_values[col_index] = s_array[decreasing_index_order[col_index]]
-		ordered_principal_components[:, col_index] = v_array_transpose[decreasing_index_order[col_index], :]
+	for parameter_index in range(n_parameters):
+		ordered_singular_values[parameter_index] = s_array[decreasing_index_order[parameter_index]]
+		ordered_principal_components[:, parameter_index] = v_array_transpose[decreasing_index_order[parameter_index], :]
 
 	# Convert the ordered singular values stored to percent variances
 	ordered_percent_variances = 100 * ordered_singular_values**2 / sum(ordered_singular_values**2)
 	
-	# Project the normalized data onto the principal directions in decreasing variance order (will be n_rows x n_cols)
+	# Project the normalized data onto the principal directions in decreasing variance order (will be n_points x n_parameters)
 	projected_data_array = matmul(normalized_data_array, ordered_principal_components)
 	
 	# Construct a dictionary of relevant results

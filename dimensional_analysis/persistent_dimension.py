@@ -41,8 +41,8 @@ from typing import Any, Tuple, Union
 # Define the global variables which will be needed for parallelization
 global_ALL_CUMULATIVE_TABLE_NAMES = None
 global_ALL_SOFTMAX_DISTANCES = None
-global_N_COLS = None
-global_N_ROWS = None
+global_N_PARAMETERS = None
+global_N_POINTS = None
 global_QUEUE_PROXY = None
 global_RAW_DATA_ARRAY = None
 
@@ -52,39 +52,39 @@ def _initializeWorkerComputePCA(payload:Tuple[list, list, int, int, BaseProxy, n
 	# Set the needed variables to be global in scope
 	global global_ALL_CUMULATIVE_TABLE_NAMES
 	global global_ALL_SOFTMAX_DISTANCES
-	global global_N_COLS
-	global global_N_ROWS
+	global global_N_PARAMETERS
+	global global_N_POINTS
 	global global_QUEUE_PROXY
 	global global_RAW_DATA_ARRAY
 
 	# Store the provided values in the global scope
 	global_ALL_CUMULATIVE_TABLE_NAMES = payload[0]
 	global_ALL_SOFTMAX_DISTANCES = payload[1]
-	global_N_COLS = payload[2]
-	global_N_ROWS = payload[3]
+	global_N_PARAMETERS = payload[2]
+	global_N_POINTS = payload[3]
 	global_QUEUE_PROXY = payload[4]
 	global_RAW_DATA_ARRAY = payload[5]
 
 # Define a worker function so that multiprocessing can be used to compute PCA in parallel
-def _workerComputePCA(row_index:int):
+def _workerComputePCA(point_index:int):
 	# Allow for computation of all PCA results to be computed in parallel
-	# Verify the input for row index only (and just assume global values are correct coming from the generateDimensionDatabase function)
-	assert type(row_index) == int, "_proxyComputePCA: Provided value for 'row_index' must be an int object"
-	assert 0 <= row_index and row_index < global_N_ROWS, "_proxyComputePCA: Provided value for 'row_index' must be >= 0 and < the number of rows in the data array"
+	# Verify the input for point index only (and just assume global values are correct coming from the generateDimensionDatabase function)
+	assert type(point_index) == int, "_proxyComputePCA: Provided value for 'point_index' must be an int object"
+	assert 0 <= point_index and point_index < global_N_POINTS, "_proxyComputePCA: Provided value for 'point_index' must be >= 0 and < the number of points in the data array"
 
-	# Set the center vector to be the current row
-	center_vector = global_RAW_DATA_ARRAY[row_index, :]
+	# Set the center vector to be the current point
+	center_vector = global_RAW_DATA_ARRAY[point_index, :]
 
 	# Compute the distances from the points to the center vector
-	distance_array = zeros(global_N_ROWS, dtype = float)
-	for other_row_index in range(global_N_ROWS):
-		distance_array[other_row_index] = norm(global_RAW_DATA_ARRAY[other_row_index, :] - center_vector)
+	distance_array = zeros(global_N_POINTS, dtype = float)
+	for other_point_index in range(global_N_POINTS):
+		distance_array[other_point_index] = norm(global_RAW_DATA_ARRAY[other_point_index, :] - center_vector)
 
 	# Get the total number of softmax distances for which computations are performed
 	n_distances = len(global_ALL_SOFTMAX_DISTANCES)
 
 	# Initialize an array where rows will contain cumulative percent variances for each softmax distance
-	all_cumulative_percent_variances = zeros((n_distances, global_N_COLS + 1), dtype = float)
+	all_cumulative_percent_variances = zeros((n_distances, global_N_PARAMETERS + 1), dtype = float)
 
 	# Loop over the needed softmax distances
 	for distance_index in range(n_distances):
@@ -102,7 +102,7 @@ def _workerComputePCA(row_index:int):
 		all_cumulative_percent_variances[distance_index, :] = cumulative_percent_variances
 
 	# Put the needed results into the queue
-	global_QUEUE_PROXY.put((row_index, all_cumulative_percent_variances, n_distances, global_ALL_CUMULATIVE_TABLE_NAMES))
+	global_QUEUE_PROXY.put((point_index, all_cumulative_percent_variances, n_distances, global_ALL_CUMULATIVE_TABLE_NAMES))
 
 # Define a queue function so that multiprocessing can be used to compute PCA in parallel
 def _queueComputePCA(queue_proxy:BaseProxy, db_path:Union[PosixPath, WindowsPath]):
@@ -125,15 +125,19 @@ def _queueComputePCA(queue_proxy:BaseProxy, db_path:Union[PosixPath, WindowsPath
 		else:
 			# Parse the values from the front item and write to the db file
 			# Read the needed values from the front item
-			row_index = front_item[0]
+			point_index = front_item[0]
 			all_cumulative_percent_variances = front_item[1]
 			n_distances = front_item[2]
 			all_cumulative_table_names = front_item[3]
 
 			# Write the resulting outputs to the db file
 			for distance_index in range(n_distances):
+				# Combine the point index and percent variances into a new row
+				new_row = [point_index] + list(all_cumulative_percent_variances[distance_index, :])
+
+				# Write the new row to the db file
 				appendRow(connection_manager = connection_manager, table_name = all_cumulative_table_names[distance_index])
-				replaceRow(connection_manager = connection_manager, table_name = all_cumulative_table_names[distance_index], row_index = row_index, new_row = list(all_cumulative_percent_variances[distance_index, :]))
+				replaceRow(connection_manager = connection_manager, table_name = all_cumulative_table_names[distance_index], row_index = point_index, new_row = new_row)
 
 	# Close the connection manager
 	connection_manager.close()
@@ -145,7 +149,7 @@ def _queueComputePCA(queue_proxy:BaseProxy, db_path:Union[PosixPath, WindowsPath
 # Define the table names needed for a dimension database along with the relevant column names and types
 # Input settings table
 TABLE_NAME_INPUT_SETTINGS = "input_settings"
-COLUMN_NAMES_INPUT_SETTINGS = ["n_rows", "n_cols", "min_softmax_distance", "max_softmax_distance", "n_distances"]
+COLUMN_NAMES_INPUT_SETTINGS = ["n_points", "n_parameters", "min_softmax_distance", "max_softmax_distance", "n_distances"]
 COLUMN_TYPES_INPUT_SETTINGS = ["BIGINT", "BIGINT", "REAL", "REAL", "BIGINT"]
 # Distances used table
 TABLE_NAME_DISTANCES_USED = "distances_used"
@@ -153,16 +157,16 @@ COLUMN_NAMES_DISTANCES_USED = ["table_name", "softmax_distance"]
 COLUMN_TYPES_DISTANCES_USED = ["TEXT", "REAL"]
 # Raw data array table
 TABLE_NAME_RAW_DATA_ARRAY = "raw_data_array"
-COLUMN_NAMES_FUNCTION_RAW_DATA_ARRAY = lambda n_cols: ["parameter_" + str(index + 1) for index in range(n_cols)]
-COLUMN_TYPES_FUNCTION_RAW_DATA_ARRAY = lambda n_cols: ["REAL" for _ in range(n_cols)]
+COLUMN_NAMES_FUNCTION_RAW_DATA_ARRAY = lambda n_parameters: ["parameter_" + str(parameter_index + 1) for parameter_index in range(n_parameters)]
+COLUMN_TYPES_FUNCTION_RAW_DATA_ARRAY = lambda n_parameters: ["REAL" for _ in range(n_parameters)]
 # Projected data array table
 TABLE_NAME_PROJECTED_DATA_ARRAY = "projected_data_array"
-COLUMN_NAMES_FUNCTION_PROJECTED_DATA_ARRAY = lambda n_cols: ["parameter_" + str(index + 1) for index in range(n_cols)]
-COLUMN_TYPES_FUNCTION_PROJECTED_DATA_ARRAY = lambda n_cols: ["REAL" for _ in range(n_cols)]
+COLUMN_NAMES_FUNCTION_PROJECTED_DATA_ARRAY = lambda n_parameters: ["parameter_" + str(parameter_index + 1) for parameter_index in range(n_parameters)]
+COLUMN_TYPES_FUNCTION_PROJECTED_DATA_ARRAY = lambda n_parameters: ["REAL" for _ in range(n_parameters)]
 # Cumulative percent variances tables
 TABLE_NAME_FUNCTION_CUMULATIVE_PERCENT_VARIANCES = lambda distance_index: "cumulative_percent_variances_" + str(distance_index)
-COLUMN_NAMES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES = lambda n_cols: ["cumulative_" + str(index) for index in range(n_cols + 1)]
-COLUMN_TYPES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES = lambda n_cols: ["REAL" for _ in range(n_cols + 1)]
+COLUMN_NAMES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES = lambda n_parameters: ["point_index"] + ["cumulative_" + str(parameter_index) for parameter_index in range(n_parameters + 1)]
+COLUMN_TYPES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES = lambda n_parameters: ["BIGINT"] + ["REAL" for _ in range(n_parameters + 1)]
 
 # Define the function for generating a dimension database (i.e. dimension estimates for each point as a function of percent variance and softmax distance
 def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, max_softmax_distance:Any, n_distances:int = 1) -> Union[PosixPath, WindowsPath]:
@@ -200,21 +204,21 @@ def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, 
 	# Create a connection manager to associate with the db file
 	connection_manager = ConnectionManager(db_path = db_path)
 	
-	# Extract the number of rows and columns in the data
-	n_rows = raw_data_array.shape[0]
-	n_cols = raw_data_array.shape[1]
+	# Extract the number of points and parameters in the data
+	n_points = raw_data_array.shape[0]
+	n_parameters = raw_data_array.shape[1]
 	
 	# Create the needed db file and tables
 	addTable(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS, column_names = COLUMN_NAMES_INPUT_SETTINGS, column_types = COLUMN_TYPES_INPUT_SETTINGS)
 	addTable(connection_manager = connection_manager, table_name = TABLE_NAME_DISTANCES_USED, column_names = COLUMN_NAMES_DISTANCES_USED, column_types = COLUMN_TYPES_DISTANCES_USED)
-	addTable(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY, column_names = COLUMN_NAMES_FUNCTION_RAW_DATA_ARRAY(n_cols), column_types = COLUMN_TYPES_FUNCTION_RAW_DATA_ARRAY(n_cols))
-	addTable(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, column_names = COLUMN_NAMES_FUNCTION_PROJECTED_DATA_ARRAY(n_cols), column_types = COLUMN_TYPES_FUNCTION_PROJECTED_DATA_ARRAY(n_cols))
+	addTable(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY, column_names = COLUMN_NAMES_FUNCTION_RAW_DATA_ARRAY(n_parameters), column_types = COLUMN_TYPES_FUNCTION_RAW_DATA_ARRAY(n_parameters))
+	addTable(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, column_names = COLUMN_NAMES_FUNCTION_PROJECTED_DATA_ARRAY(n_parameters), column_types = COLUMN_TYPES_FUNCTION_PROJECTED_DATA_ARRAY(n_parameters))
 	for distance_index in range(n_distances):
-		addTable(connection_manager = connection_manager, table_name = all_cumulative_table_names[distance_index], column_names = COLUMN_NAMES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_cols), column_types = COLUMN_TYPES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_cols))
+		addTable(connection_manager = connection_manager, table_name = all_cumulative_table_names[distance_index], column_names = COLUMN_NAMES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_parameters), column_types = COLUMN_TYPES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_parameters))
 
 	# Write the settings to the db file
 	appendRow(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS)
-	replaceRow(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0, new_row = [n_rows, n_cols, float(min_softmax_distance), float(max_softmax_distance), n_distances])
+	replaceRow(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0, new_row = [n_points, n_parameters, float(min_softmax_distance), float(max_softmax_distance), n_distances])
 
 	# Write the softmax distances and associated table names to the db file
 	for distance_index in range(n_distances):
@@ -222,26 +226,26 @@ def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, 
 		replaceRow(connection_manager = connection_manager, table_name = TABLE_NAME_DISTANCES_USED, row_index = distance_index, new_row = [all_cumulative_table_names[distance_index], float(all_softmax_distances[distance_index])])
 
 	# Write the raw data array to the db file
-	for row_index in range(n_rows):
+	for point_index in range(n_points):
 		# Get the new row as float values
-		new_row = [float(value) for value in raw_data_array[row_index, :]]
+		new_row = [float(value) for value in raw_data_array[point_index, :]]
 
 		# Write to the db file
 		appendRow(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY)
-		replaceRow(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY, row_index = row_index, new_row = new_row)
+		replaceRow(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY, row_index = point_index, new_row = new_row)
 
 	# Perform PCA on the raw data array to get the projected data array used for plotting
 	pca_results = performPCA(raw_data_array = raw_data_array, normalize_flag = False)
 	projected_data_array = pca_results["outputs"]["projected_data_array"]
 
 	# Write the projected data array to the db file
-	for row_index in range(n_rows):
+	for point_index in range(n_points):
 		# Get the new row as float values
-		new_row = [float(value) for value in projected_data_array[row_index, :]]
+		new_row = [float(value) for value in projected_data_array[point_index, :]]
 
 		# Write to the db file
 		appendRow(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY)
-		replaceRow(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, row_index = row_index, new_row = new_row)
+		replaceRow(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, row_index = point_index, new_row = new_row)
 
 	# Close the connection manager
 	connection_manager.close()
@@ -254,13 +258,13 @@ def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, 
 	# Define the tuple of shared values needed by all workers
 	shared_info = ((all_cumulative_table_names,
 					all_softmax_distances,
-					n_cols,
-					n_rows,
+					n_parameters,
+					n_points,
 					queue_proxy,
 					raw_data_array),)
 
 	# Create the list of inputs used for each step in the process
-	all_inputs = list(range(n_rows))
+	all_inputs = list(range(n_points))
 
 	# Initialize a pool with the needed number of processes, run the computation in parallel, and end by closing the pool
 	pool = Pool(processes = max(cpu_count() - 2, 1), initializer = _initializeWorkerComputePCA, initargs = shared_info)
@@ -294,8 +298,8 @@ def verifyDimensionDatabase(db_path:Union[PosixPath, WindowsPath]):
 
 	# Load needed values from the input settings table
 	read_row = readRow(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
-	n_rows = read_row[0]
-	n_cols = read_row[1]
+	n_points = read_row[0]
+	n_parameters = read_row[1]
 	n_distances = read_row[4]
 
 	# Make sure all other tables exist and have the correct column names, column types and row counts
@@ -306,21 +310,21 @@ def verifyDimensionDatabase(db_path:Union[PosixPath, WindowsPath]):
 	assert getRowCount(connection_manager = connection_manager, table_name = TABLE_NAME_DISTANCES_USED) == n_distances, "verifyDimensionDatabase: Table of name " + TABLE_NAME_DISTANCES_USED + " has the incorrect number or rows"
 	# Raw data array table
 	assert TABLE_NAME_RAW_DATA_ARRAY in table_names, "verifyDimensionDatabase: Provided value for 'db_path' must refer to a database with " + TABLE_NAME_RAW_DATA_ARRAY + " as a table name"
-	assert getColumnNames(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY) == COLUMN_NAMES_FUNCTION_RAW_DATA_ARRAY(n_cols), "verifyDimensionDatabase: Table of name " + TABLE_NAME_RAW_DATA_ARRAY + " has the incorrect column names"
-	assert getColumnTypes(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY) == COLUMN_TYPES_FUNCTION_RAW_DATA_ARRAY(n_cols), "verifyDimensionDatabase: Table of name " + TABLE_NAME_RAW_DATA_ARRAY + " has the incorrect column types"
-	assert getRowCount(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY) == n_rows, "verifyDimensionDatabase: Table of name " + TABLE_NAME_RAW_DATA_ARRAY + " has the incorrect number or rows"
+	assert getColumnNames(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY) == COLUMN_NAMES_FUNCTION_RAW_DATA_ARRAY(n_parameters), "verifyDimensionDatabase: Table of name " + TABLE_NAME_RAW_DATA_ARRAY + " has the incorrect column names"
+	assert getColumnTypes(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY) == COLUMN_TYPES_FUNCTION_RAW_DATA_ARRAY(n_parameters), "verifyDimensionDatabase: Table of name " + TABLE_NAME_RAW_DATA_ARRAY + " has the incorrect column types"
+	assert getRowCount(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY) == n_points, "verifyDimensionDatabase: Table of name " + TABLE_NAME_RAW_DATA_ARRAY + " has the incorrect number or rows"
 	# Projected data array table
 	assert TABLE_NAME_PROJECTED_DATA_ARRAY in table_names, "verifyDimensionDatabase: Provided value for 'db_path' must refer to a database with " + TABLE_NAME_PROJECTED_DATA_ARRAY + " as a table name"
-	assert getColumnNames(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY) == COLUMN_NAMES_FUNCTION_PROJECTED_DATA_ARRAY(n_cols), "verifyDimensionDatabase: Table of name " + TABLE_NAME_PROJECTED_DATA_ARRAY + " has the incorrect column names"
-	assert getColumnTypes(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY) == COLUMN_TYPES_FUNCTION_PROJECTED_DATA_ARRAY(n_cols), "verifyDimensionDatabase: Table of name " + TABLE_NAME_PROJECTED_DATA_ARRAY + " has the incorrect column types"
-	assert getRowCount(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY) == n_rows, "verifyDimensionDatabase: Table of name " + TABLE_NAME_PROJECTED_DATA_ARRAY + " has the incorrect number or rows"
+	assert getColumnNames(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY) == COLUMN_NAMES_FUNCTION_PROJECTED_DATA_ARRAY(n_parameters), "verifyDimensionDatabase: Table of name " + TABLE_NAME_PROJECTED_DATA_ARRAY + " has the incorrect column names"
+	assert getColumnTypes(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY) == COLUMN_TYPES_FUNCTION_PROJECTED_DATA_ARRAY(n_parameters), "verifyDimensionDatabase: Table of name " + TABLE_NAME_PROJECTED_DATA_ARRAY + " has the incorrect column types"
+	assert getRowCount(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY) == n_points, "verifyDimensionDatabase: Table of name " + TABLE_NAME_PROJECTED_DATA_ARRAY + " has the incorrect number or rows"
 	# Cumulative percent variances tables
 	for distance_index in range(n_distances):
 		current_table_name = TABLE_NAME_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(distance_index)
 		assert current_table_name in table_names, "verifyDimensionDatabase: Provided value for 'db_path' must refer to a database with " + current_table_name + " as a table name"
-		assert getColumnNames(connection_manager = connection_manager, table_name = current_table_name) == COLUMN_NAMES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_cols), "verifyDimensionDatabase: Table of name " + current_table_name + " has the incorrect column names"
-		assert getColumnTypes(connection_manager = connection_manager, table_name = current_table_name) == COLUMN_TYPES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_cols), "verifyDimensionDatabase: Table of name " + current_table_name + " has the incorrect column types"
-		assert getRowCount(connection_manager = connection_manager, table_name = current_table_name) == n_rows, "verifyDimensionDatabase: Table of name " + current_table_name + " has the incorrect number or rows"
+		assert getColumnNames(connection_manager = connection_manager, table_name = current_table_name) == COLUMN_NAMES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_parameters), "verifyDimensionDatabase: Table of name " + current_table_name + " has the incorrect column names"
+		assert getColumnTypes(connection_manager = connection_manager, table_name = current_table_name) == COLUMN_TYPES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_parameters), "verifyDimensionDatabase: Table of name " + current_table_name + " has the incorrect column types"
+		assert getRowCount(connection_manager = connection_manager, table_name = current_table_name) == n_points, "verifyDimensionDatabase: Table of name " + current_table_name + " has the incorrect number or rows"
 
 	# Close the connection manager
 	connection_manager.close()
@@ -343,13 +347,13 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], softmax_di
 	if needed_indices is not None:
 		assert type(needed_indices) == list, "estimatePointwiseDimension: If provided, value for 'needed_indices' must be a list object"
 		assert len(needed_indices) > 0, "estimatePointwiseDimension: If provided, value for 'needed_indices' must be a non-empty list"
-		for row_index in needed_indices:
-			assert type(row_index) == int, "estimatePointwiseDimension: If provided, value for 'needed_indices' must be a list of int objects"
+		for point_index in needed_indices:
+			assert type(point_index) == int, "estimatePointwiseDimension: If provided, value for 'needed_indices' must be a list of int objects"
 
 	# Get the relevant input settings from the db file
 	read_row = readRow(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
-	n_rows = read_row[0]
-	n_cols = read_row[1]
+	n_points = read_row[0]
+	n_parameters = read_row[1]
 	min_softmax_distance = read_row[2]
 	max_softmax_distance = read_row[3]
 	n_distances = read_row[4]
@@ -357,26 +361,26 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], softmax_di
 	# Handle additional verification of setting of the needed indices
 	if needed_indices is None:
 		# Needed indices not provided, compute for all points in the database
-		needed_indices = range(n_rows)
+		needed_indices = range(n_points)
 	else:
 		# Specific indices requested, make sure they are valid
 		assert len(set(needed_indices)) == len(needed_indices), "estimatePointwiseDimension: If provided, value for 'needed_indices' must be a list of distinct entries"
-		for row_index in needed_indices:
-			assert 0 <= row_index and row_index < n_rows, "estimatePointwiseDimension: If provided, value for 'needed_indices' must be a list of non-negative integers less the number of rows from the database (in this case " + str(n_rows) + ")"
+		for point_index in needed_indices:
+			assert 0 <= point_index and point_index < n_points, "estimatePointwiseDimension: If provided, value for 'needed_indices' must be a list of non-negative integers less the number of points from the database (in this case " + str(n_points) + ")"
 
 	# Verify that the softmax is valid
 	assert min_softmax_distance <= softmax_distance and softmax_distance <= max_softmax_distance, "estimatePointwiseDimension: Provided value for 'softmax_distance' must be between minimum and maximum softmax distances stored in this db file"
 
 	# Define an internal helper function for getting a dimension estimate at a given softmax distance index
-	def getDimensionEstimate(softmax_index:int, row_index:int) -> float:
+	def getDimensionEstimate(softmax_index:int, point_index:int) -> float:
 		# Load the cumulative percent variances for this data point
-		all_percent_variances = readRow(connection_manager = connection_manager, table_name = TABLE_NAME_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(softmax_index), row_index = row_index)
+		all_percent_variances = readRow(connection_manager = connection_manager, table_name = TABLE_NAME_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(softmax_index), row_index = point_index)
 
 		# Compute the estimated dimension by linearly interpolating
-		for percent_index in range(n_cols):
+		for parameter_index in range(n_parameters):
 			# Get the current percent variance bounds
-			lower_percent_variance = all_percent_variances[percent_index]
-			upper_percent_variance = all_percent_variances[percent_index + 1]
+			lower_percent_variance = all_percent_variances[parameter_index + 1]
+			upper_percent_variance = all_percent_variances[parameter_index + 2]
 
 			# Proceed if the percent variance is in this range
 			if lower_percent_variance <= percent_variance and percent_variance <= upper_percent_variance:
@@ -385,16 +389,16 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], softmax_di
 				upper_percent_weight = (percent_variance - lower_percent_variance) / (upper_percent_variance - lower_percent_variance)
 
 				# Return the needed dimension estimate and break
-				return lower_percent_weight * percent_index + upper_percent_weight * (percent_index + 1)
+				return lower_percent_weight * parameter_index + upper_percent_weight * (parameter_index + 1)
 
 	# Initialize the dictionary of results
 	dimension_results = {}
 
 	# Compute the dimension estimates for each point
-	for row_index in needed_indices:
+	for point_index in needed_indices:
 		if n_distances == 1:
 			# Only a single softmax distance was used, do a single variable linear interpolation
-			dimension_results[row_index] = getDimensionEstimate(softmax_index = 0, row_index = row_index)
+			dimension_results[point_index] = getDimensionEstimate(softmax_index = 0, point_index = point_index)
 		else:
 			# Multiple softmax distances were used, do a double variable linear interpolation
 			# Load the list of softmax distances used
@@ -413,11 +417,11 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], softmax_di
 					upper_softmax_weight = (softmax_distance - lower_softmax_distance) / (upper_softmax_distance - lower_softmax_distance)
 
 					# Compute the dimension estimate using the lower and upper softmax distances
-					lower_dimension_estimate = getDimensionEstimate(softmax_index = softmax_index, row_index = row_index)
-					upper_dimension_estimate = getDimensionEstimate(softmax_index = softmax_index + 1, row_index = row_index)
+					lower_dimension_estimate = getDimensionEstimate(softmax_index = softmax_index, point_index = point_index)
+					upper_dimension_estimate = getDimensionEstimate(softmax_index = softmax_index + 1, point_index = point_index)
 
 					# Combine to get the needed dimension estimate
-					dimension_results[row_index] = lower_softmax_weight * lower_dimension_estimate + upper_softmax_weight * upper_dimension_estimate
+					dimension_results[point_index] = lower_softmax_weight * lower_dimension_estimate + upper_softmax_weight * upper_dimension_estimate
 
 	# Close the connection manager
 	connection_manager.close()
@@ -429,7 +433,7 @@ def estimatePointwiseDimension(db_path:Union[PosixPath, WindowsPath], softmax_di
 ##########################################################################
 ### Define functions for visualizing the pointwise dimension estimates ###
 ##########################################################################
-def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_index:int, min_softmax_distance:Any, max_softmax_distance:Any, min_percent_variance:Any = 0,
+def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], point_index:int, min_softmax_distance:Any, max_softmax_distance:Any, min_percent_variance:Any = 0,
 								 max_percent_variance:Any = 100, n_samples:int = 100, used_engine:str = "matplotlib", round_flag:bool = False, show_flag:bool = True, save_flag:bool = False):
 	# Generate a plot of the estimated dimension for the given point
 	# Verify that the provided db file is a valid dimension database
@@ -440,16 +444,16 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 	connection_manager = ConnectionManager(db_path = db_path)
 	# Read the needed values
 	read_row = readRow(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
-	n_rows = read_row[0]
-	n_cols = read_row[1]
+	n_points = read_row[0]
+	n_parameters = read_row[1]
 	n_distances = read_row[4]
 	# Close the connection manager
 	connection_manager.close()
 
 	# Verify the other inputs
-	# Row index (i.e. point to plot)
-	assert type(row_index) == int, "plotDimensionEstimateOfPoint: Provided value for 'row_index' must be an int object"
-	assert 0 <= row_index and row_index < n_rows, "plotDimensionEstimateOfPoint: Provided value for 'row_index' must be non-negative and less the number of rows from the database (in this case " + str(n_rows) + ")"
+	# Point index (i.e. point to plot)
+	assert type(point_index) == int, "plotDimensionEstimateOfPoint: Provided value for 'point_index' must be an int object"
+	assert 0 <= point_index and point_index < n_points, "plotDimensionEstimateOfPoint: Provided value for 'point_index' must be non-negative and less the number of points from the database (in this case " + str(n_points) + ")"
 	# Softmax distance and percent variance bounds
 	assert isNumeric(min_softmax_distance, include_numpy_flag = True) == True, "plotDimensionEstimateOfPoint: Provided value for 'min_softmax_distance' must be numeric"
 	assert isNumeric(max_softmax_distance, include_numpy_flag = True) == True, "plotDimensionEstimateOfPoint: Provided value for 'max_softmax_distance' must be numeric"
@@ -547,7 +551,7 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			dimension_estimate = estimatePointwiseDimension(db_path = db_path,
 															softmax_distance = min_softmax_distance,
 															percent_variance = percent_variance,
-															needed_indices = [row_index])[row_index]
+															needed_indices = [point_index])[point_index]
 			# Append to the needed lists
 			x_values.append(percent_variance)
 			y_values.append(round(dimension_estimate) if round_flag == True else dimension_estimate)
@@ -555,7 +559,7 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 		# Define the title to use for the plot
 		plot_title = "(Rounded) " if round_flag == True else ""
 		plot_title += "Estimated Dimension Of Point "
-		plot_title += str(row_index)
+		plot_title += str(point_index)
 		plot_title += " (As Function Of Explained Variance, Softmax Distance Of "
 		plot_title += str(min_softmax_distance)
 		plot_title += ")"
@@ -577,7 +581,7 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			dimension_estimate = estimatePointwiseDimension(db_path = db_path,
 															softmax_distance = softmax_distance,
 															percent_variance = min_percent_variance,
-															needed_indices = [row_index])[row_index]
+															needed_indices = [point_index])[point_index]
 			# Append to the needed lists
 			x_values.append(softmax_distance)
 			y_values.append(round(dimension_estimate) if round_flag == True else dimension_estimate)
@@ -585,7 +589,7 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 		# Define the title to use for the plot
 		plot_title = "(Rounded) " if round_flag == True else ""
 		plot_title += "Estimated Dimension Of Point "
-		plot_title += str(row_index)
+		plot_title += str(point_index)
 		plot_title += " (As Function Of Softmax Distance, Explained Variance Of "
 		plot_title += str(min_percent_variance)
 		plot_title += "%)"
@@ -635,7 +639,7 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 					dimension_estimate = estimatePointwiseDimension(db_path = db_path,
 																	softmax_distance = softmax_distance,
 																	percent_variance = percent_variance,
-																	needed_indices = [row_index])[row_index]
+																	needed_indices = [point_index])[point_index]
 					# Append to the needed lists
 					new_row_x.append(softmax_distance)
 					new_row_y.append(percent_variance)
@@ -666,7 +670,7 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 					dimension_estimate = estimatePointwiseDimension(db_path = db_path,
 																	softmax_distance = x_values[softmax_index],
 																	percent_variance = y_values[percent_index],
-																	needed_indices = [row_index])[row_index]
+																	needed_indices = [point_index])[point_index]
 					z_values[percent_index, softmax_index] = round(dimension_estimate) if round_flag == True else dimension_estimate
 					# Add in the information for the point labels
 					point_labels[softmax_index, percent_index, 0] = round(x_values[softmax_index], 3)
@@ -676,7 +680,7 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 		# Define the title to use for the plot
 		plot_title = "(Rounded) " if round_flag == True else ""
 		plot_title += "Estimated Dimension Of Point "
-		plot_title += str(row_index)
+		plot_title += str(point_index)
 		plot_title += " (As Function Of Softmax Distance And Explained Variance)"
 
 		# Define the axis labels
@@ -698,7 +702,7 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 			ax.set_ylabel(y_label)
 			ax.set_zlabel(z_label)
 			fig.colorbar(surface_plot, ax = ax, pad = 0.1)
-			surface_plot.set_clim(0, n_cols)
+			surface_plot.set_clim(0, n_parameters)
 			# Show the figure (if needed)
 			if show_flag == True:
 				plt.show()
@@ -721,7 +725,7 @@ def plotDimensionEstimateOfPoint(db_path:Union[PosixPath, WindowsPath], row_inde
 									   			   	  "<extra></extra>"),
 									 colorscale = color_scale,
 									 cmin = 0,
-									 cmax = n_cols))
+									 cmax = n_parameters))
 			# Format the figure
 			fig.update_layout(title = plot_title,
 							  scene = {"xaxis_title": x_label,
@@ -745,8 +749,8 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 
 	# Get the relevant input settings from the db file
 	read_row = readRow(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0)
-	n_rows = read_row[0]
-	n_cols = read_row[1]
+	n_points = read_row[0]
+	n_parameters = read_row[1]
 	min_softmax_distance = read_row[2]
 	max_softmax_distance = read_row[3]
 
@@ -765,16 +769,16 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 	# Make sure the softmax distance are valid given the contents of the db file
 	assert min_softmax_distance <= softmax_distance and softmax_distance <= max_softmax_distance, "plotDimensionEstimateOfSet: Provided value for 'softmax_distance' must fall in the range given by the db file (in this case " + str(min_softmax_distance) + " to " + str(max_softmax_distance) + ")"
 
-	# Make sure the number of columns is sufficiently large
+	# Make sure the number of parameters is sufficiently large
 	if plot_type == "scatter3D":
-		assert n_cols >= 3, "plotDimensionEstimateOfSet: Number of columns in raw data set must be at least 3 when value for 'plot_type' is 'scatter3D'"
+		assert n_parameters >= 3, "plotDimensionEstimateOfSet: Number of parameters in raw data set must be at least 3 when value for 'plot_type' is 'scatter3D'"
 	else:
-		assert n_cols >= 2, "plotDimensionEstimateOfSet: Number of columns in raw data set must be at least 2 when value for 'plot_type' is not 'scatter3D'"
+		assert n_parameters >= 2, "plotDimensionEstimateOfSet: Number of parameters in raw data set must be at least 2 when value for 'plot_type' is not 'scatter3D'"
 
 	# Load the projected data array from the db file
-	projected_data_array = zeros((n_rows, n_cols), dtype = float)
-	for row_index in range(n_rows):
-		projected_data_array[row_index, :] = readRow(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, row_index = row_index)
+	projected_data_array = zeros((n_points, n_parameters), dtype = float)
+	for point_index in range(n_points):
+		projected_data_array[point_index, :] = readRow(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, row_index = point_index)
 
 	# Close the connection manager
 	connection_manager.close()
@@ -805,11 +809,11 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 
 		# Get the labels needed for each point
 		point_labels = []
-		for row_index in range(n_rows):
+		for point_index in range(n_points):
 			if round_flag == True:
-				point_labels.append((row_index, dimension_results[row_index]))
+				point_labels.append((point_index, dimension_results[point_index]))
 			else:
-				point_labels.append((row_index, round(dimension_results[row_index], 3)))
+				point_labels.append((point_index, round(dimension_results[point_index], 3)))
 
 	# Define the title to use for the plot
 	plot_title = "(Rounded) " if round_flag == True else ""
@@ -828,10 +832,10 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 			fig = plt.figure(figsize = (10, 8), layout = "constrained")
 			ax = fig.add_subplot()
 			# Set the color normalizer and get the colors by height
-			normalizer = plt.Normalize(0, n_cols)
+			normalizer = plt.Normalize(0, n_parameters)
 			bar_colors = color_map(normalizer(dimension_results))
 			# Add the needed bars
-			bar_plot = ax.bar([str(row_index) for row_index in range(n_rows)], dimension_results, color = bar_colors)
+			bar_plot = ax.bar([str(point_index) for point_index in range(n_points)], dimension_results, color = bar_colors)
 			# Create the needed colorbar
 			scalar_mappable = ScalarMappable(cmap = color_map, norm = normalizer)
 			scalar_mappable.set_array([])
@@ -850,7 +854,7 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 			# Create the figure
 			fig = go.Figure()
 			# Add the needed bars
-			fig.add_trace(go.Bar(x = [str(row_index) for row_index in range(n_rows)],
+			fig.add_trace(go.Bar(x = [str(point_index) for point_index in range(n_points)],
 								 y =  dimension_results,
 								 showlegend = False,
 								 customdata = point_labels,
@@ -861,7 +865,7 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 								 		   "colorscale": color_scale,
 								 		   "showscale": True,
 								 		   "cmin": 0,
-									       "cmax": n_cols}))
+									       "cmax": n_parameters}))
 			# Format the figure
 			fig.update_layout(title = plot_title)
 			fig.update_xaxes(title = x_label)
@@ -880,7 +884,7 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 		y_label = "estimated dimension"
 
 		# Get the x-data and y-data for the plots
-		x_data = [100 * row_index / (n_rows - 1) for row_index in range(n_rows)]
+		x_data = [100 * point_index / (n_points - 1) for point_index in range(n_points)]
 		y_data = sorted(dimension_results)
 
 		# Handle the case of matplotlib vs plotly
@@ -930,7 +934,7 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 			plt.scatter(projected_data_array[:, 0], projected_data_array[:, 1], c = dimension_results, cmap = color_map)
 			# Create the needed colorbar
 			plt.colorbar()
-			plt.clim(0, n_cols)
+			plt.clim(0, n_parameters)
 			# Format the figure
 			plt.title(plot_title)
 			plt.xlabel(x_label)
@@ -959,7 +963,7 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 									           "colorscale": color_scale,
 									           "showscale": True,
 									           "cmin": 0,
-									           "cmax": n_cols}))
+									           "cmax": n_parameters}))
 			# Format the figure
 			fig.update_layout(title = plot_title)
 			fig.update_xaxes(title = x_label)
@@ -989,7 +993,7 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 
 			# Create the needed colorbar
 			fig.colorbar(scatter_plot, ax = ax, pad = 0.1)
-			scatter_plot.set_clim(0, n_cols)
+			scatter_plot.set_clim(0, n_parameters)
 
 			# Format the figure
 			plt.title(plot_title)
@@ -1023,7 +1027,7 @@ def plotDimensionEstimateOfSet(db_path:Union[PosixPath, WindowsPath], softmax_di
 									             "colorscale": color_scale,
 									             "showscale": True,
 									             "cmin": 0,
-									             "cmax": n_cols,
+									             "cmax": n_parameters,
 									             "size": 3}))
 
 			# Format the figure
