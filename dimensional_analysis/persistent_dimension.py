@@ -23,7 +23,8 @@ from math import sqrt
 from matplotlib.cm import ScalarMappable
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
-from multiprocessing import Pool
+from multiprocessing import Pool, Process, Manager
+from multiprocessing.managers import BaseProxy
 from numpy import array, cumsum, frombuffer, mean, ndarray, zeros
 from numpy.linalg import norm
 from os import cpu_count, remove
@@ -38,28 +39,34 @@ from typing import Any, Tuple, Union
 ### Define helper functions needed for running the dimension database generation in parallel ###
 ################################################################################################
 # Define the global variables which will be needed for parallelization
+global_ALL_CUMULATIVE_TABLE_NAMES = None
 global_ALL_SOFTMAX_DISTANCES = None
 global_N_COLS = None
 global_N_ROWS = None
+global_QUEUE_PROXY = None
 global_RAW_DATA_ARRAY = None
 
-# Define the worker initializer for computing PCA
-def _initializeComputePCA(payload:Tuple[list, int, int, ndarray]):
+# Define a worker initialization function so that multiprocessing can be used to compute PCA in parallel
+def _initializeWorkerComputePCA(payload:Tuple[list, list, int, int, BaseProxy, ndarray]):
 	# Store the data-related parameters needed for PCA computation in the global scope
 	# Set the needed variables to be global in scope
+	global global_ALL_CUMULATIVE_TABLE_NAMES
 	global global_ALL_SOFTMAX_DISTANCES
 	global global_N_COLS
 	global global_N_ROWS
+	global global_QUEUE_PROXY
 	global global_RAW_DATA_ARRAY
 
 	# Store the provided values in the global scope
-	global_ALL_SOFTMAX_DISTANCES = payload[0]
-	global_N_COLS = payload[1]
-	global_N_ROWS = payload[2]
-	global_RAW_DATA_ARRAY = payload[3]
+	global_ALL_CUMULATIVE_TABLE_NAMES = payload[0]
+	global_ALL_SOFTMAX_DISTANCES = payload[1]
+	global_N_COLS = payload[2]
+	global_N_ROWS = payload[3]
+	global_QUEUE_PROXY = payload[4]
+	global_RAW_DATA_ARRAY = payload[5]
 
-# Define a wrapper function so that the function can use multiprocessing to compute PCA
-def _proxyComputePCA(row_index:int) -> ndarray:
+# Define a worker function so that multiprocessing can be used to compute PCA in parallel
+def _workerComputePCA(row_index:int):
 	# Allow for computation of all PCA results to be computed in parallel
 	# Verify the input for row index only (and just assume global values are correct coming from the generateDimensionDatabase function)
 	assert type(row_index) == int, "_proxyComputePCA: Provided value for 'row_index' must be an int object"
@@ -94,8 +101,42 @@ def _proxyComputePCA(row_index:int) -> ndarray:
 		# Store the variances for this softmax distance in the needed array
 		all_cumulative_percent_variances[distance_index, :] = cumulative_percent_variances
 
-	# Return the results
-	return all_cumulative_percent_variances
+	# Put the needed results into the queue
+	global_QUEUE_PROXY.put((row_index, all_cumulative_percent_variances, n_distances, global_ALL_CUMULATIVE_TABLE_NAMES))
+
+# Define a queue function so that multiprocessing can be used to compute PCA in parallel
+def _queueComputePCA(queue_proxy:BaseProxy, db_path:Union[PosixPath, WindowsPath]):
+	# Define a writer process for writing numpy array results sequentially to the db file
+	# Verify the inputs (but really only the queue, leave the path to the connection manager)
+	assert isinstance(queue_proxy, BaseProxy) == True, "_queueComputePCA: Provided value for 'queue_proxy' must be a instance of a BaseProxy object from multiprocessing.managers"
+
+	# Create a connection manager to associate with the db file
+	connection_manager = ConnectionManager(db_path = db_path)
+
+	# Handle the write loop
+	while True:
+		# Retrieve the front item from the queue
+		front_item = queue_proxy.get()
+
+		# Handle the various cases
+		if front_item == "PCA COMPLETED":
+			# All workers are done, end the writing loop
+			break
+		else:
+			# Parse the values from the front item and write to the db file
+			# Read the needed values from the front item
+			row_index = front_item[0]
+			all_cumulative_percent_variances = front_item[1]
+			n_distances = front_item[2]
+			all_cumulative_table_names = front_item[3]
+
+			# Write the resulting outputs to the db file
+			for distance_index in range(n_distances):
+				appendRow(connection_manager = connection_manager, table_name = all_cumulative_table_names[distance_index])
+				replaceRow(connection_manager = connection_manager, table_name = all_cumulative_table_names[distance_index], row_index = row_index, new_row = list(all_cumulative_percent_variances[distance_index, :]))
+
+	# Close the connection manager
+	connection_manager.close()
 
 
 ##############################################################################################
@@ -202,28 +243,33 @@ def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, 
 		appendRow(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY)
 		replaceRow(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, row_index = row_index, new_row = new_row)
 
+	# Close the connection manager
+	connection_manager.close()
+
+	# Create the process needed for the db file writing queue
+	queue_proxy = Manager().Queue()
+	writer_process = Process(target = _queueComputePCA, args = (queue_proxy, db_path))
+	writer_process.start()
+
 	# Define the tuple of shared values needed by all workers
-	shared_info = ((all_softmax_distances,
+	shared_info = ((all_cumulative_table_names,
+					all_softmax_distances,
 					n_cols,
 					n_rows,
+					queue_proxy,
 					raw_data_array),)
 
 	# Create the list of inputs used for each step in the process
 	all_inputs = list(range(n_rows))
 
 	# Initialize a pool with the needed number of processes, run the computation in parallel, and end by closing the pool
-	pool = Pool(processes = max(cpu_count() - 1, 1), initializer = _initializeComputePCA, initargs = shared_info)
-	all_outputs = pool.map(_proxyComputePCA, all_inputs)
+	pool = Pool(processes = max(cpu_count() - 2, 1), initializer = _initializeWorkerComputePCA, initargs = shared_info)
+	all_outputs = pool.map(_workerComputePCA, all_inputs)
 	pool.close()
 
-	# Write the resulting outputs to the db file
-	for row_index in range(n_rows):
-		for distance_index in range(n_distances):
-			appendRow(connection_manager = connection_manager, table_name = all_cumulative_table_names[distance_index])
-			replaceRow(connection_manager = connection_manager, table_name = all_cumulative_table_names[distance_index], row_index = row_index, new_row = list(all_outputs[row_index][distance_index, :]))
-
-	# Close the connection manager
-	connection_manager.close()
+	# End the writer process
+	queue_proxy.put("PCA COMPLETED")
+	writer_process.join()
 
 	# Return the path of the db file
 	return db_path
