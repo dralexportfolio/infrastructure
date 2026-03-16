@@ -329,7 +329,7 @@ class VectorField2D:
 						self._n_rows,
 						self._softmax_normalizer),)
 
-		# Create the list of inputs used for each index pair
+		# Create the list of inputs used for each step in the process
 		all_inputs = []
 		for row_index in range(self._n_rows):
 			for col_index in range(self._n_cols):
@@ -367,7 +367,7 @@ class VectorField2D:
 						self._n_cols,
 						self._n_rows),)
 
-		# Create the list of inputs used for each index pair
+		# Create the list of inputs used for each step in the process
 		all_inputs = []
 		for row_index in range(self._n_rows):
 			for col_index in range(self._n_cols):

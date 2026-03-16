@@ -23,7 +23,7 @@ from math import sqrt
 from matplotlib.cm import ScalarMappable
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
-from multiprocessing.dummy import Pool
+from multiprocessing import Pool
 from numpy import array, cumsum, frombuffer, mean, ndarray, zeros
 from numpy.linalg import norm
 from os import cpu_count, remove
@@ -34,9 +34,73 @@ from scipy.special import softmax
 from typing import Any, Tuple, Union
 
 
-##################################################################################################
-### Define all constants and functions needed for generating and verifying dimension databases ###
-##################################################################################################
+################################################################################################
+### Define helper functions needed for running the dimension database generation in parallel ###
+################################################################################################
+# Define the global variables which will be needed for parallelization
+global_ALL_SOFTMAX_DISTANCES = None
+global_N_COLS = None
+global_N_ROWS = None
+global_RAW_DATA_ARRAY = None
+
+# Define the worker initializer for computing PCA
+def _initializeComputePCA(payload:Tuple[list, int, int, ndarray]):
+	# Store the data-related parameters needed for PCA computation in the global scope
+	# Set the needed variables to be global in scope
+	global global_ALL_SOFTMAX_DISTANCES
+	global global_N_COLS
+	global global_N_ROWS
+	global global_RAW_DATA_ARRAY
+
+	# Store the provided values in the global scope
+	global_ALL_SOFTMAX_DISTANCES = payload[0]
+	global_N_COLS = payload[1]
+	global_N_ROWS = payload[2]
+	global_RAW_DATA_ARRAY = payload[3]
+
+# Define a wrapper function so that the function can use multiprocessing to compute PCA
+def _proxyComputePCA(row_index:int) -> ndarray:
+	# Allow for computation of all PCA results to be computed in parallel
+	# Verify the input for row index only (and just assume global values are correct coming from the generateDimensionDatabase function)
+	assert type(row_index) == int, "_proxyComputePCA: Provided value for 'row_index' must be an int object"
+	assert 0 <= row_index and row_index < global_N_ROWS, "_proxyComputePCA: Provided value for 'row_index' must be >= 0 and < the number of rows in the data array"
+
+	# Set the center vector to be the current row
+	center_vector = global_RAW_DATA_ARRAY[row_index, :]
+
+	# Compute the distances from the points to the center vector
+	distance_array = zeros(global_N_ROWS, dtype = float)
+	for other_row_index in range(global_N_ROWS):
+		distance_array[other_row_index] = norm(global_RAW_DATA_ARRAY[other_row_index, :] - center_vector)
+
+	# Get the total number of softmax distances for which computations are performed
+	n_distances = len(global_ALL_SOFTMAX_DISTANCES)
+
+	# Initialize an array where rows will contain cumulative percent variances for each softmax distance
+	all_cumulative_percent_variances = zeros((n_distances, global_N_COLS + 1), dtype = float)
+
+	# Loop over the needed softmax distances
+	for distance_index in range(n_distances):
+		# Compute the weight vector using softmax on the distances
+		weight_vector = softmax(-(distance_array / global_ALL_SOFTMAX_DISTANCES[distance_index])**2)
+
+		# Compute the needed PCA results
+		pca_results = performPCA(raw_data_array = global_RAW_DATA_ARRAY, normalize_flag = False, center_vector = center_vector, weight_vector = weight_vector)
+
+		# Compute the cumulative percent variances from these results (note: force first and last values to be 0 and 100 respectively)
+		cumulative_percent_variances = [0.0] + [float(value) for value in cumsum(pca_results["outputs"]["ordered_percent_variances"])]
+		cumulative_percent_variances[-1] = 100.0
+
+		# Store the variances for this softmax distance in the needed array
+		all_cumulative_percent_variances[distance_index, :] = cumulative_percent_variances
+
+	# Return the results
+	return all_cumulative_percent_variances
+
+
+##############################################################################################
+### Define constants and functions needed for generating and verifying dimension databases ###
+##############################################################################################
 # Define the table names needed for a dimension database along with the relevant column names and types
 # Input settings table
 TABLE_NAME_INPUT_SETTINGS = "input_settings"
@@ -138,54 +202,25 @@ def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, 
 		appendRow(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY)
 		replaceRow(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, row_index = row_index, new_row = new_row)
 
-	# Define an internal function used to run PCA in parallel
-	def runPCAInParallel(bound_raw_data_array:ndarray, bound_all_softmax_distances:list, bound_n_rows:int, row_index:int) -> list:
-		# Run a set of PCA calculations on the given data point and return the results
-		# Set the center vector to be the current row
-		center_vector = bound_raw_data_array[row_index, :]
+	# Define the tuple of shared values needed by all workers
+	shared_info = ((all_softmax_distances,
+					n_cols,
+					n_rows,
+					raw_data_array),)
 
-		# Compute the distances from the points to the center vector
-		distance_array = zeros(bound_n_rows, dtype = float)
-		for other_row_index in range(bound_n_rows):
-			distance_array[other_row_index] = norm(bound_raw_data_array[other_row_index, :] - center_vector)
-
-		# Initialize a list that will contain lists of cumulative percent variances for each softmax distance
-		all_cumulative_percent_variances = []
-
-		# Loop over the needed softmax distances
-		for softmax_distance in bound_all_softmax_distances:
-			# Compute the weight vector using softmax on the distances
-			weight_vector = softmax(-(distance_array / softmax_distance)**2)
-
-			# Compute the needed PCA results
-			pca_results = performPCA(raw_data_array = bound_raw_data_array, normalize_flag = False, center_vector = center_vector, weight_vector = weight_vector)
-
-			# Compute the cumulative percent variances from these results (note: force first and last values to be 0 and 100 respectively)
-			cumulative_percent_variances = [0.0] + [float(value) for value in cumsum(pca_results["outputs"]["ordered_percent_variances"])]
-			cumulative_percent_variances[-1] = 100.0
-
-			# Append the variances for this softmax distance to the list of lists
-			all_cumulative_percent_variances.append(cumulative_percent_variances)
-
-		# Return the results
-		return all_cumulative_percent_variances
-
-	# Bind the raw data array to the parallel function
-	runPCAInParallelBound = partial(runPCAInParallel, raw_data_array, all_softmax_distances, n_rows)
-
-	# Create the input list for the process
+	# Create the list of inputs used for each step in the process
 	all_inputs = list(range(n_rows))
 
 	# Initialize a pool with the needed number of processes, run the computation in parallel, and end by closing the pool
-	pool = Pool(processes = max(cpu_count() - 1, 1))
-	all_outputs = pool.map(runPCAInParallelBound, all_inputs)
+	pool = Pool(processes = max(cpu_count() - 1, 1), initializer = _initializeComputePCA, initargs = shared_info)
+	all_outputs = pool.map(_proxyComputePCA, all_inputs)
 	pool.close()
 
 	# Write the resulting outputs to the db file
 	for row_index in range(n_rows):
 		for distance_index in range(n_distances):
 			appendRow(connection_manager = connection_manager, table_name = all_cumulative_table_names[distance_index])
-			replaceRow(connection_manager = connection_manager, table_name = all_cumulative_table_names[distance_index], row_index = row_index, new_row = all_outputs[row_index][distance_index])
+			replaceRow(connection_manager = connection_manager, table_name = all_cumulative_table_names[distance_index], row_index = row_index, new_row = list(all_outputs[row_index][distance_index, :]))
 
 	# Close the connection manager
 	connection_manager.close()
