@@ -13,7 +13,7 @@ path.insert(0, str(infrastructure_folder.joinpath("common_needs")))
 # Internal modules
 from color_helper import customSpectrum
 from dimension_reduction import performPCA
-from sqlite3_helper import addTable, appendRow, ConnectionManager, getColumnNames, getColumnTypes, getExistingTables, getRowCount, readColumn, readRow, replaceRow
+from sqlite3_helper import addTable, appendRow, ConnectionManager, getColumnNames, getColumnTypes, getExistingTables, getRowCount, readColumn, readRow, sortTable
 from tkinter_helper import askSaveFilename
 from type_helper import isNumeric
 
@@ -115,12 +115,26 @@ def _queueComputePCA(queue_proxy:BaseProxy, db_path:Union[PosixPath, WindowsPath
 
 	# Handle the write loop
 	while True:
-		# Retrieve the front item from the queue
+		# Retrieve the front item from the queue and make sure it is a tuple of length 2 or 4
 		front_item = queue_proxy.get()
+		assert type(front_item) == tuple, "_queueComputePCA: Only tuples can be put onto the queue"
+		assert len(front_item) in [2, 4], "_queueComputePCA: Only tuples or length 2 or 4 can be put onto the queue"
 
 		# Handle the various cases
-		if front_item == "PCA COMPLETED":
-			# All workers are done, end the writing loop
+		if len(front_item) == 2:
+			# All workers are done computing PCA so sort the needed tables and end the writing loop
+			# Read the needed values from the front item
+			message = front_item[0]
+			all_cumulative_table_names = front_item[1]
+
+			# Make sure the message is correct
+			assert message == "PCA COMPLETED", "_queueComputePCA: When tuple of length 2 is put onto the queue, the first entry must be 'PCA COMPLETED'"
+
+			# Sort the percent variance tables by point index
+			for table_name in all_cumulative_table_names:
+				sortTable(connection_manager = connection_manager, table_name = table_name, column_name = "point_index", ascending_flag = True)
+
+			# End the loop
 			break
 		else:
 			# Parse the values from the front item and write to the db file
@@ -136,8 +150,7 @@ def _queueComputePCA(queue_proxy:BaseProxy, db_path:Union[PosixPath, WindowsPath
 				new_row = [point_index] + list(all_cumulative_percent_variances[distance_index, :])
 
 				# Write the new row to the db file
-				appendRow(connection_manager = connection_manager, table_name = all_cumulative_table_names[distance_index])
-				replaceRow(connection_manager = connection_manager, table_name = all_cumulative_table_names[distance_index], row_index = point_index, new_row = new_row)
+				appendRow(connection_manager = connection_manager, table_name = all_cumulative_table_names[distance_index], new_row = new_row)
 
 	# Close the connection manager
 	connection_manager.close()
@@ -217,13 +230,11 @@ def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, 
 		addTable(connection_manager = connection_manager, table_name = all_cumulative_table_names[distance_index], column_names = COLUMN_NAMES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_parameters), column_types = COLUMN_TYPES_FUNCTION_CUMULATIVE_PERCENT_VARIANCES(n_parameters))
 
 	# Write the settings to the db file
-	appendRow(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS)
-	replaceRow(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS, row_index = 0, new_row = [n_points, n_parameters, float(min_softmax_distance), float(max_softmax_distance), n_distances])
+	appendRow(connection_manager = connection_manager, table_name = TABLE_NAME_INPUT_SETTINGS, new_row = [n_points, n_parameters, float(min_softmax_distance), float(max_softmax_distance), n_distances])
 
 	# Write the softmax distances and associated table names to the db file
 	for distance_index in range(n_distances):
-		appendRow(connection_manager = connection_manager, table_name = TABLE_NAME_DISTANCES_USED)
-		replaceRow(connection_manager = connection_manager, table_name = TABLE_NAME_DISTANCES_USED, row_index = distance_index, new_row = [all_cumulative_table_names[distance_index], float(all_softmax_distances[distance_index])])
+		appendRow(connection_manager = connection_manager, table_name = TABLE_NAME_DISTANCES_USED, new_row = [all_cumulative_table_names[distance_index], float(all_softmax_distances[distance_index])])
 
 	# Write the raw data array to the db file
 	for point_index in range(n_points):
@@ -231,8 +242,7 @@ def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, 
 		new_row = [float(value) for value in raw_data_array[point_index, :]]
 
 		# Write to the db file
-		appendRow(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY)
-		replaceRow(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY, row_index = point_index, new_row = new_row)
+		appendRow(connection_manager = connection_manager, table_name = TABLE_NAME_RAW_DATA_ARRAY, new_row = new_row)
 
 	# Perform PCA on the raw data array to get the projected data array used for plotting
 	pca_results = performPCA(raw_data_array = raw_data_array, normalize_flag = False)
@@ -244,8 +254,7 @@ def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, 
 		new_row = [float(value) for value in projected_data_array[point_index, :]]
 
 		# Write to the db file
-		appendRow(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY)
-		replaceRow(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, row_index = point_index, new_row = new_row)
+		appendRow(connection_manager = connection_manager, table_name = TABLE_NAME_PROJECTED_DATA_ARRAY, new_row = new_row)
 
 	# Close the connection manager
 	connection_manager.close()
@@ -272,7 +281,7 @@ def generateDimensionDatabase(raw_data_array:ndarray, min_softmax_distance:Any, 
 	pool.close()
 
 	# End the writer process
-	queue_proxy.put("PCA COMPLETED")
+	queue_proxy.put(("PCA COMPLETED", all_cumulative_table_names))
 	writer_process.join()
 
 	# Return the path of the db file

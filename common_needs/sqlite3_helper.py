@@ -456,7 +456,7 @@ def readEntry(connection_manager:ConnectionManager, table_name:str, column_name:
 #######################################################################
 ### Define functions for writing to a db file at the given location ###
 #######################################################################
-def appendColumn(connection_manager:ConnectionManager, table_name:str, column_name:str, column_type:str):
+def appendColumn(connection_manager:ConnectionManager, table_name:str, column_name:str, column_type:str, new_column:list = None):
 	# Add a new empty column to the right of an existing table in the given db file
 	# Verify the provided connection manager input
 	assert type(connection_manager) == ConnectionManager, "appendColumn: Provided value for 'connection_manager' must be a ConnectionManager object"
@@ -468,31 +468,42 @@ def appendColumn(connection_manager:ConnectionManager, table_name:str, column_na
 	
 	# Verify that the provided column types is valid
 	assert column_type in ALLOWED_COLUMN_TYPES, "appendColumn: Provided value for 'column_type' be an entry from the following list:" + str(ALLOWED_COLUMN_TYPES)
+
+	# Handle the various cases
+	if new_column is None:
+		# Create the query for adding a new empty column to the table
+		add_column_query = "ALTER TABLE '" + table_name + "' ADD COLUMN " + column_name + " " + column_type + ";"
+
+		# Add the new empty column to the table in the db file using the connection manager
+		connection_manager.execute(query = add_column_query, iterate_flag = True)
+	else:
+		pass
 	
-	# Add the new column to the db file using the connection manager
-	add_column_query = "ALTER TABLE '" + table_name + "' ADD COLUMN " + column_name + " " + column_type + ";"
-	connection_manager.execute(query = add_column_query, iterate_flag = True)
-	
-def appendRow(connection_manager:ConnectionManager, table_name:str):
+def appendRow(connection_manager:ConnectionManager, table_name:str, new_row:list = None):
 	# Add a new empty row to the bottom of an existing table in the given db file
 	# Verify the provided connection manager input
 	assert type(connection_manager) == ConnectionManager, "appendRow: Provided value for 'connection_manager' must be a ConnectionManager object"
 	assert connection_manager.getActiveFlag() == True, "appendRow: Provided value for 'connection_manager' must represent an active connection to a db file"
 
-	# Make sure that the needed table exists and fetch the column names and row count using the connection manager
+	# Make sure that the needed table exists and fetch the column names using the connection manager
 	connection_manager.checkTableName(table_name = table_name)
 	column_names = connection_manager.checkColumnName(table_name = table_name)
-	row_count = connection_manager.checkRowCount(table_name = table_name)
-	
-	# Create a list to be used as the new row for the table
-	new_row = [None for _ in range(len(column_names))]
-	
-	# Create the query for writing the new row to the table
+
+	# Verify any additional inputs
+	if new_row is not None:
+		assert type(new_row) == list, "appendRow: If provided, value for 'new_row' must be a list object"
+		assert len(new_row) == len(column_names), "addedRow: If provided, value for 'new_row' must be of length equal to the number of columns in the provided table"
+
+	# Use a list of all None values if new row was not provided
+	if new_row is None:
+		new_row = [None for _ in range(len(column_names))]
+
+	# Create the query for adding a new row to the table
 	write_row_query = "INSERT INTO '" + table_name + "' " + str(tuple(column_names)) + " VALUES ("
 	for col_index in range(len(column_names)):
 		write_row_query += "?, " if col_index < len(column_names) - 1 else "?);"
 			
-	# Execute the write query using the connection manager
+	# Add the new row to the table in the db file using the connection manager
 	connection_manager.execute(query = write_row_query, fill_values = new_row, iterate_flag = True)
 	
 def deleteColumn(connection_manager:ConnectionManager, table_name:str, column_name:str):
@@ -676,3 +687,46 @@ def swapRows(connection_manager:ConnectionManager, table_name:str, row_index_1:i
 	replace_row_2_query += "WHERE rowid IN (SELECT rowid FROM '" + table_name + "' LIMIT 1 OFFSET " + str(row_index_2) + ");"
 	# Execute the query using the connection manager
 	connection_manager.execute(query = replace_row_2_query, fill_values = read_row_1, iterate_flag = True)
+
+
+##############################################################################################################
+### Define a function for sorting a table in a db file in ascending or descending order for a given column ###
+##############################################################################################################
+def sortTable(connection_manager:ConnectionManager, table_name:str, column_name:str, ascending_flag:bool):
+	# Replace the given table with a version sorted in the needed order
+	# Verify the provided connection manager input
+	assert type(connection_manager) == ConnectionManager, "sortTable: Provided value for 'connection_manager' must be a ConnectionManager object"
+	assert connection_manager.getActiveFlag() == True, "sortTable: Provided value for 'connection_manager' must represent an active connection to a db file"
+
+	# Verify that the needed table/column is present and fetch the table/column names using the connection manager
+	table_names = connection_manager.checkTableName(table_name = table_name)
+	column_names = connection_manager.checkColumnName(table_name = table_name, column_name = column_name)
+
+	# Verify any additional inputs
+	assert type(ascending_flag) == bool, "sortTable: Provided value for 'ascending_flag' must be a bool object"
+
+	# Create the temporary table name for newly created sorted table
+	temp_table_name = table_name + "_sorted"
+	while temp_table_name in table_names:
+		temp_table_name += "0"
+
+	# Fetch the column types used for the original table
+	column_types = getColumnTypes(connection_manager = connection_manager, table_name = table_name)
+
+	# Create a new table with the same column names and types
+	addTable(connection_manager = connection_manager, table_name = temp_table_name, column_names = column_names, column_types = column_types)
+
+	# Insert a sorted version of the old table into the new table
+	# Create the query for creating the sorted table
+	sort_table_query = "INSERT INTO '" + temp_table_name + "' SELECT * FROM '" + table_name + "' ORDER BY " + column_name
+	sort_table_query += " ASC;" if ascending_flag == True else " DESC;"
+	# Execute the query using the connection manager
+	connection_manager.execute(query = sort_table_query, iterate_flag = True)
+
+	# Drop the old table using the connection manager
+	drop_table_query = "DROP TABLE '" + table_name + "';"
+	connection_manager.execute(query = drop_table_query, iterate_flag = True)
+
+	# Rename the new table to the name of the old table using the connection manager
+	rename_table_query = "ALTER TABLE '" + temp_table_name + "' RENAME TO '" + table_name + "';"
+	connection_manager.execute(query = rename_table_query, iterate_flag = True)
