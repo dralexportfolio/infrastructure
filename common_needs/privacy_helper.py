@@ -15,7 +15,6 @@ from typing import Any
 def privacyDecorator(attribute_names:list, deepcopy_flag:bool = False):
 	### Verify the inputs ###
 	assert isListWithStringEntries(attribute_names, allow_empty_flag = False) == True, "privacyDecorator: Provided value for 'attribute_names' must be a list object with non-empty str objects as entries"
-	assert len(attribute_names) > 0, "privacyDecorator: Provided value for 'attribute_names' must be a list of length > 0"
 	assert len(set(attribute_names)) == len(attribute_names), "privacyDecorator: Provided value for 'attribute_names' must be a list of unique entries"
 	assert type(deepcopy_flag) == bool, "privacyDecorator: Provided value for 'deepcopy_flag' must be a bool object"
 
@@ -39,6 +38,33 @@ def privacyDecorator(attribute_names:list, deepcopy_flag:bool = False):
 
 		# Define a shared function used for determining if access is allowed
 		def determineIfAccessAllowed(attribute_name:str) -> bool:
+			# Determine if gatekeeping is necessary for the given attribute
+			# Get the current frame of the program
+			current_frame = currentframe()
+
+			# End early with a True value if the operation is related to an allowed deepcopy operation
+			if deepcopy_flag == True:
+				for previous_frame in getouterframes(current_frame):
+					if previous_frame.filename.endswith("copy.py") and previous_frame.function == "deepcopy":
+						return True
+
+			# End early with a True value if the caller of the operation was the class itself (two levels back due to nested functions)
+			calling_frame_local_variables = current_frame.f_back.f_back.f_locals
+			if "self" in calling_frame_local_variables:
+				if isinstance(calling_frame_local_variables["self"], class_to_decorate) == True:
+					return True
+
+			# End early with a False value if the attribute is protected from external access
+			# Handle the case of being in the explicitly defined list of private names
+			if attribute_name in attribute_names:
+				return False
+			# Handle the cases of implicitly defined private names (i.e. double underscore or name mangling)
+			if attribute_name.startswith("__"):
+				return False
+			if attribute_name.startswith("_" + class_to_decorate.__name__ + "__"):
+				return False
+
+			# Return True to indicate that all checks have passed
 			return True
 
 		# Define the function implementing the modified __getattribute__ functionality
@@ -78,7 +104,7 @@ def privacyDecorator(attribute_names:list, deepcopy_flag:bool = False):
 		class_to_decorate.__getattribute__ = modified__getattribute__
 		class_to_decorate.__setattr__ = modified__setattr__
 		class_to_decorate.__delattr__ = modified__delattr__
-		# Only get the last one if it exists
+		# Only set the last one if it exists
 		if hasattr(class_to_decorate, "__getattr__") == True:
 			class_to_decorate.__getattr__ = modified__getattr__
 
@@ -87,26 +113,3 @@ def privacyDecorator(attribute_names:list, deepcopy_flag:bool = False):
 
 	### Return the middle function implementing the privacy rules ###
 	return implementPrivacy
-
-@privacyDecorator(["_value"])
-class Test:
-	def __init__(self):
-		self.sddlgknasflkgnaldfkfnlkdfnh = 0
-
-		print("TEST 1:")
-		self.asfbasfnomomomen()
-
-	def asfbasfnomomomen(self):
-		frame = currentframe().f_back
-		print("    Section 1:")
-		print("       ", frame.f_code.co_name)
-		print("       ", frame.f_locals)
-
-		print("    Section 2:")
-		for frame in getouterframes(currentframe()):
-			print("       ", frame)
-		return None
-
-a = Test()
-print("TEST 2:")
-a.asfbasfnomomomen()
