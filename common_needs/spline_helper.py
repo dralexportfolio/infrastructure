@@ -37,14 +37,9 @@ natural_cubic_spline_private_attributes = ["_base_x_value_per_index",				# class
 									       "_cubic_coefficient_per_index"]
 
 
-########################################
-### Define the abstract spline class ###
-########################################
-# Create the decorator needed for making the attributes private
-spline_decorator = privacyDecorator(spline_private_attributes)
-
-# Define the class with private attributes
-@spline_decorator
+#########################################################################################################################################
+### Define the abstract spline class without private attributes (because otherwise initializing the subclasses via super() would fail)###
+#########################################################################################################################################
 class Spline(ABC):
 	### Initialize the class ###
 	def __init__(self, x_values:list, y_values:list):

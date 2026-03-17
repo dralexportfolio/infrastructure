@@ -41,7 +41,8 @@ def privacyDecorator(attribute_names:list, deepcopy_flag:bool = True):
 			# Get the current frame of the program
 			current_frame = currentframe()
 
-			# End early with a True value if the caller of the operation was the class itself (two levels back due to nested functions)
+			# End early with a True value if the caller of the operation was itself class which is being decorated
+			# Note: Need two levels of back here due to determineIfAccessAllowed being shared by the modified class methods
 			calling_frame_local_variables = current_frame.f_back.f_back.f_locals
 			if "self" in calling_frame_local_variables:
 				if isinstance(calling_frame_local_variables["self"], class_to_decorate) == True:
