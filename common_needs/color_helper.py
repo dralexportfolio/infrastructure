@@ -2,6 +2,7 @@
 ### Import needed general dependencies ###
 ##########################################
 # Internal modules
+from privacy_helper import privacyDecorator
 from type_helper import isListWithNumericEntries, isNumeric
 
 # External modules
@@ -10,7 +11,6 @@ from math import sqrt
 from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
 from plotly.express import colors
-from PrivateAttributesDecorator import private_attributes_dec
 from typing import Any, Tuple
 
 
@@ -18,9 +18,9 @@ from typing import Any, Tuple
 ### Define an generalized RGB color class ###
 #############################################
 # Create the decorator needed for making the attributes private
-rgb_decorator = private_attributes_dec("_red_value",					# class variables
-									   "_green_value",
-									   "_blue_value")
+rgb_decorator = privacyDecorator(["_red_value",			# class variables
+						 		  "_green_value",
+						    	  "_blue_value"])
 									   
 # Define the class with private attributes
 @rgb_decorator

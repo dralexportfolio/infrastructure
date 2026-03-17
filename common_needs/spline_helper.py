@@ -2,6 +2,7 @@
 ### Import needed general dependencies ###
 ##########################################
 # Internal modules
+from privacy_helper import privacyDecorator
 from tkinter_helper import askSaveFilename
 from type_helper import isListWithNumericEntries, isNumeric
 
@@ -11,7 +12,6 @@ import matplotlib.pyplot as plt
 from numpy import matmul, zeros
 from numpy.linalg import inv
 import plotly.graph_objects as go
-from PrivateAttributesDecorator import private_attributes_dec
 from typing import Any, Tuple
 
 
@@ -19,18 +19,18 @@ from typing import Any, Tuple
 ### Define the private attributes needed for each class ###
 ###########################################################
 # Abstract spline class
-SPLINE_PRIVATE_ATTRIBUTES = ["_n_points",								# class variables
+spline_private_attributes = ["_n_points",											# class variables
 							 "_x_values",
 							 "_y_values",
-							 "_findIndex"]								# private functions
+							 "_findIndex"]											# private functions
 							 
 # Additional for linear spline class
-LINEAR_SPLINE_PRIVATE_ATTRIBUTES = ["_base_x_value_per_index",			# class variables
+linear_spline_private_attributes = ["_base_x_value_per_index",						# class variables
 									"_base_y_value_per_index",
 									"_slope_per_index"]
 									
 # Additional for natural cubic spline class
-NATURAL_CUBIC_SPLINE_PRIVATE_ATTRIBUTES = ["_base_x_value_per_index",	# class variables
+natural_cubic_spline_private_attributes = ["_base_x_value_per_index",				# class variables
 									       "_base_y_value_per_index",
 									       "_linear_coefficient_per_index",
 									       "_quadratic_coefficient_per_index",
@@ -41,7 +41,7 @@ NATURAL_CUBIC_SPLINE_PRIVATE_ATTRIBUTES = ["_base_x_value_per_index",	# class va
 ### Define the abstract spline class ###
 ########################################
 # Create the decorator needed for making the attributes private
-spline_decorator = private_attributes_dec(*SPLINE_PRIVATE_ATTRIBUTES)	
+spline_decorator = privacyDecorator(spline_private_attributes)
 
 # Define the class with private attributes
 @spline_decorator
@@ -218,7 +218,7 @@ class Spline(ABC):
 ### Define the concrete linear spline class ###
 ###############################################
 # Create the decorator needed for making the attributes private
-linear_spline_decorator = private_attributes_dec(*(SPLINE_PRIVATE_ATTRIBUTES + LINEAR_SPLINE_PRIVATE_ATTRIBUTES))
+linear_spline_decorator = privacyDecorator(spline_private_attributes + linear_spline_private_attributes)
 
 # Define the class with private attributes
 @linear_spline_decorator
@@ -276,7 +276,7 @@ class LinearSpline(Spline):
 ### Define the concrete natural cubic spline class ###
 ######################################################
 # Create the decorator needed for making the attributes private
-natural_cubic_spline_decorator = private_attributes_dec(*(SPLINE_PRIVATE_ATTRIBUTES + NATURAL_CUBIC_SPLINE_PRIVATE_ATTRIBUTES))
+natural_cubic_spline_decorator = privacyDecorator(spline_private_attributes + natural_cubic_spline_private_attributes)
 
 # Define the class with private attributes
 @natural_cubic_spline_decorator

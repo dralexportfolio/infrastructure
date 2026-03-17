@@ -22,7 +22,6 @@ def privacyDecorator(attribute_names:list, deepcopy_flag:bool = False):
 	def implementPrivacy(class_to_decorate:type):
 		# Implement the various privacy features needed for getting and setting class values
 		# Verify the inputs
-		assert type(class_to_decorate) == type, "privacyDecorator::implementPrivacy: Provided value for 'class_to_decorate' must be a class (i.e. this decorator must be attached to a class definition)"
 		assert hasattr(class_to_decorate, "__getattribute__"), "privacyDecorator::implementPrivacy: Provided value for 'class_to_decorate' must have '__getattribute__' as an attribute"
 		assert hasattr(class_to_decorate, "__setattr__"), "privacyDecorator::implementPrivacy: Provided value for 'class_to_decorate' must have '__setattr__' as an attribute"
 		assert hasattr(class_to_decorate, "__delattr__"), "privacyDecorator::implementPrivacy: Provided value for 'class_to_decorate' must have '__delattr__' as an attribute"

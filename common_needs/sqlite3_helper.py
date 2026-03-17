@@ -2,12 +2,12 @@
 ### Import needed general dependencies ###
 ##########################################
 # Internal modules
+from privacy_helper import privacyDecorator
 from type_helper import isDictionaryWithStringKeys, isListWithStringEntries
 
 # External modules
 from os.path import exists
 from pathlib import Path, PosixPath, WindowsPath
-from PrivateAttributesDecorator import private_attributes_dec
 from sqlite3 import connect, Connection, Cursor
 from typing import Any, Tuple, Union
 
@@ -32,13 +32,13 @@ ALLOWED_COLUMN_TYPES += ["BLOB", "no datatype specified"]
 ### Define the connection manager object to optimize commit frequency and perform additional checks ###
 #######################################################################################################
 # Create the decorator needed for making the attributes private
-connection_manager_decorator = private_attributes_dec("_active_flag",		# class variables
-													  "_buffer_size",
-													  "_db_connection",
-										 			  "_db_cursor",
-													  "_db_path",
-													  "_max_buffer_size",
-													  "_checkDBPath")		# internal functions
+connection_manager_decorator = privacyDecorator(["_active_flag",		# class variables
+												 "_buffer_size",
+												 "_db_connection",
+										 		 "_db_cursor",
+												 "_db_path",
+												 "_max_buffer_size",
+												 "_checkDBPath"])		# internal functions
 
 # Define the class with private attributes
 @connection_manager_decorator

@@ -12,6 +12,7 @@ path.insert(0, str(infrastructure_folder.joinpath("dimensional_analysis")))
 
 # Internal modules
 from dimension_reduction import performPCA
+from privacy_helper import privacyDecorator
 from tkinter_helper import askSaveFilename
 from type_helper import isNumeric
 
@@ -23,7 +24,6 @@ from numpy import max as np_max
 from numpy import min as np_min
 from os import cpu_count
 from PIL.Image import fromarray
-from PrivateAttributesDecorator import private_attributes_dec
 from scipy.special import softmax
 from typing import Any, Tuple
 
@@ -158,24 +158,24 @@ def _proxyComputeCurlDivergence2D(payload:Tuple[int, int]) -> Tuple[float, float
 ### Define the 2-dimensional vector field class ###
 ###################################################
 # Create the decorator needed for making the attributes private
-vector_field_2d_decorator = private_attributes_dec("_all_base_vector_locations_col",	# class variables
-												   "_all_base_vector_locations_row",
-												   "_all_base_vectors_x",
-												   "_all_base_vectors_y",
-												   "_all_curls",
-												   "_all_divergences",
-												   "_all_vectors_x",
-												   "_all_vectors_y",
-												   "_base_vectors_generated_flag",
-												   "_curl_divergence_computed_flag",
-												   "_n_base_vectors",
-												   "_n_cols",
-												   "_n_rows",
-												   "_overwrites",
-												   "_remaining_vectors_computed_flag",
-												   "_seed",
-												   "_softmax_normalizer",
-												   "_getValue")							# internal functions
+vector_field_2d_decorator = privacyDecorator(["_all_base_vector_locations_col",		# class variables
+											  "_all_base_vector_locations_row",
+											  "_all_base_vectors_x",
+											  "_all_base_vectors_y",
+											  "_all_curls",
+											  "_all_divergences",
+											  "_all_vectors_x",
+											  "_all_vectors_y",
+											  "_base_vectors_generated_flag",
+											  "_curl_divergence_computed_flag",
+											  "_n_base_vectors",
+											  "_n_cols",
+											  "_n_rows",
+											  "_overwrites",
+											  "_remaining_vectors_computed_flag",
+											  "_seed",
+											  "_softmax_normalizer",
+											  "_getValue"])							# internal functions
 
 # Define the class with private attributes
 @vector_field_2d_decorator
