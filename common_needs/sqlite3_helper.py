@@ -462,22 +462,35 @@ def appendColumn(connection_manager:ConnectionManager, table_name:str, column_na
 	assert type(connection_manager) == ConnectionManager, "appendColumn: Provided value for 'connection_manager' must be a ConnectionManager object"
 	assert connection_manager.getActiveFlag() == True, "appendColumn: Provided value for 'connection_manager' must represent an active connection to a db file"
 
-	# Check that the needed table exists, the needed column doesn't exist, and get the existing column names using the connection manager
+	# Check that the needed table exists and that the needed column doesn't exist using the connection manager
 	connection_manager.checkTableName(table_name = table_name)
-	column_names = connection_manager.checkColumnName(table_name = table_name, column_name = column_name, exists_flag = False)
+	connection_manager.checkColumnName(table_name = table_name, column_name = column_name, exists_flag = False)
 	
 	# Verify that the provided column types is valid
 	assert column_type in ALLOWED_COLUMN_TYPES, "appendColumn: Provided value for 'column_type' be an entry from the following list:" + str(ALLOWED_COLUMN_TYPES)
 
-	# Handle the various cases
-	if new_column is None:
-		# Create the query for adding a new empty column to the table
-		add_column_query = "ALTER TABLE '" + table_name + "' ADD COLUMN " + column_name + " " + column_type + ";"
+	# Fetch the number of rows from this table using the connection manager
+	row_count = connection_manager.checkRowCount(table_name = table_name)
 
-		# Add the new empty column to the table in the db file using the connection manager
-		connection_manager.execute(query = add_column_query, iterate_flag = True)
-	else:
-		pass
+	# Verify any additional inputs
+	if new_column is not None:
+		assert type(new_column) == list, "appendColumn: If provided, value for 'new_column' must be a list object"
+		assert len(new_column) == row_count, "appendColumn: If provided, value for 'new_column' must be of length equal to the number of rows in the provided table"
+		assert row_count > 0, "appendColumn: Only able to write provided value for 'new_column' to the table if the table is non-empty"
+
+	# Add the new empty column to the table in the db file using the connection manager
+	add_column_query = "ALTER TABLE '" + table_name + "' ADD COLUMN " + column_name + " " + column_type + ";"
+	connection_manager.execute(query = add_column_query, iterate_flag = True)
+
+	# Execute a sequence of replace entry queries on the entire column (if needed)
+	if new_column is not None:
+		for row_index in range(row_count):
+			# Create the query for replacing an existing entry in the table with a new entry (using a sub-query to allow for use of LIMIT and OFFSET)
+			replace_entry_query = "UPDATE '" + table_name + "' SET " + column_name + " = ? "
+			replace_entry_query += "WHERE rowid IN (SELECT rowid FROM '" + table_name + "' LIMIT 1 OFFSET " + str(row_index) + ");"
+
+			# Execute the write query using the connection manager
+			connection_manager.execute(query = replace_entry_query, fill_values = [new_column[row_index]], iterate_flag = True)
 	
 def appendRow(connection_manager:ConnectionManager, table_name:str, new_row:list = None):
 	# Add a new empty row to the bottom of an existing table in the given db file
@@ -713,8 +726,14 @@ def sortTable(connection_manager:ConnectionManager, table_name:str, column_name:
 	# Fetch the column types used for the original table
 	column_types = getColumnTypes(connection_manager = connection_manager, table_name = table_name)
 
-	# Create a new table with the same column names and types
-	addTable(connection_manager = connection_manager, table_name = temp_table_name, column_names = column_names, column_types = column_types)
+	# Create a new table with the same column names and types as the unsorted table
+	# Create the command for an empty version of the needed table
+	create_table_query = "CREATE TABLE '" + temp_table_name + "' (" + "\n"
+	for col_index in range(len(column_names)):
+		create_table_query += "\t" + column_names[col_index] + " " + column_types[col_index]
+		create_table_query += ",\n" if col_index < len(column_names) - 1 else "\n);"
+	# Execute the command using the connection manager
+	connection_manager.execute(query = create_table_query, iterate_flag = True)
 
 	# Insert a sorted version of the old table into the new table
 	# Create the query for creating the sorted table
