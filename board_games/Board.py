@@ -13,6 +13,7 @@ path.insert(0, str(infrastructure_folder.joinpath("common_needs")))
 # Internal modules
 from color_helper import RGB
 from Polygon import Polygon
+from privacy_helper import privacyDecorator
 from type_helper import isListWithNumericEntries, isNumeric
 
 # External modules
@@ -21,7 +22,6 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 from numpy import zeros
 from PIL import Image
-from PrivateAttributesDecorator import private_attributes_dec
 from typing import Any
 
 
@@ -29,20 +29,20 @@ from typing import Any
 ### Define the board class to render a group of polygons ###
 ############################################################
 # Create the decorator needed for making the attributes private
-board_decorator = private_attributes_dec("_all_bevel_info_flag",		# class variables
-										 "_all_sun_info_flag",
-										 "_all_tint_shades",
-										 "_hash_per_polygon",
-										 "_n_polygons",
-										 "_unique_polygons_per_hash",
-										 "_x_lower",
-										 "_x_shift_per_polygon",
-										 "_x_upper",
-										 "_y_lower",
-										 "_y_shift_per_polygon",
-										 "_y_upper",
-										 "_checkFlags",					# internal functions
-										 "_computeBounds")
+board_decorator = privacyDecorator(["_all_bevel_info_flag",			# class variables
+									"_all_sun_info_flag",
+									"_all_tint_shades",
+									"_hash_per_polygon",
+									"_n_polygons",
+									"_unique_polygons_per_hash",
+									"_x_lower",
+									"_x_shift_per_polygon",
+									"_x_upper",
+									"_y_lower",
+									"_y_shift_per_polygon",
+									"_y_upper",
+									"_checkFlags",					# internal functions
+									"_computeBounds")
 
 # Define the class with private attributes
 @board_decorator

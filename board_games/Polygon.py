@@ -13,6 +13,7 @@ path.insert(0, str(infrastructure_folder.joinpath("common_needs")))
 
 # Internal modules
 from color_helper import RGB
+from privacy_helper import privacyDecorator
 from type_helper import isListWithNumericEntries, isNumeric, tolerantlyCompare
 
 # External modules
@@ -24,7 +25,6 @@ import matplotlib.pyplot as plt
 from numpy import array, matmul, zeros
 from numpy.linalg import det, inv, norm
 from PIL import Image
-from PrivateAttributesDecorator import private_attributes_dec
 from typing import Any
 
 
@@ -32,31 +32,31 @@ from typing import Any
 ### Define the polygon class as a basis for commonly used shapes ###
 ####################################################################
 # Create the decorator needed for making the attributes private
-polygon_decorator = private_attributes_dec("_bevel_attitude"				# class variables
-										   "_bevel_size",
-										   "_n_edges_per_face",
-										   "_n_vertices",
-										   "_normal_vector_per_edge",
-										   "_normal_vector_per_face",
-										   "_patch_per_face",
-										   "_preprocess_bevel_flag",
-										   "_preprocess_sun_flag",
-										   "_raw_brightness_per_face",
-										   "_render_axis",
-										   "_render_figure",
-										   "_sun_angle",
-										   "_sun_attitude",
-										   "_x_lower",
-										   "_x_midpoint_per_edge",
-										   "_x_upper",
-										   "_x_value_per_vertex",
-										   "_x_values_per_face",
-										   "_y_lower",
-										   "_y_midpoint_per_edge",
-										   "_y_upper",
-										   "_y_value_per_vertex",
-										   "_y_values_per_face",
-										   "_processInputs")				# internal functions
+polygon_decorator = privacyDecorator(["_bevel_attitude"					# class variables
+									  "_bevel_size",
+									  "_n_edges_per_face",
+									  "_n_vertices",
+									  "_normal_vector_per_edge",
+									  "_normal_vector_per_face",
+									  "_patch_per_face",
+									  "_preprocess_bevel_flag",
+									  "_preprocess_sun_flag",
+									  "_raw_brightness_per_face",
+									  "_render_axis",
+									  "_render_figure",
+									  "_sun_angle",
+									  "_sun_attitude",
+									  "_x_lower",
+									  "_x_midpoint_per_edge",
+									  "_x_upper",
+									  "_x_value_per_vertex",
+									  "_x_values_per_face",
+									  "_y_lower",
+									  "_y_midpoint_per_edge",
+									  "_y_upper",
+									  "_y_value_per_vertex",
+									  "_y_values_per_face",
+									  "_processInputs"])				# internal functions
 
 # Define the class with private attributes
 @polygon_decorator

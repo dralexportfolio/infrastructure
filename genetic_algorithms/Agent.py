@@ -11,11 +11,11 @@ infrastructure_folder = Path(__file__).parent.parent
 path.insert(0, str(infrastructure_folder.joinpath("common_needs")))
 
 # Internal modules
+from privacy_helper import privacyDecorator
 from type_helper import isListWithNumericEntries
 
 # External modules
 from abc import ABC, abstractmethod
-from PrivateAttributesDecorator import private_attributes_dec
 from typing import Tuple
 
 
@@ -23,13 +23,13 @@ from typing import Tuple
 ### Define an abstract agent class to be used for concrete agent implementations ###
 ####################################################################################
 # Define the list of private agent attributes
-AGENT_PRIVATE_ATTRIBUTES = ["_lower_bounds",	# class variables
+agent_private_attributes = ["_lower_bounds",	# class variables
 							"_n_inputs",
 							"_n_outputs",
 							"_upper_bounds"]
 
 # Create the decorator needed for making the attributes private
-agent_decorator = private_attributes_dec(*AGENT_PRIVATE_ATTRIBUTES)
+agent_decorator = privacyDecorator(agent_private_attributes)
 
 # Define the class with private attributes
 @agent_decorator
