@@ -206,12 +206,6 @@ class Spline(ABC):
 		
 		# Return the result
 		return region_index
-
-	### Define a deepcopy function compatible with PrivateAttributesDecorator ###
-	@abstractmethod
-	def deepcopy(self):
-		# Create a copy of this object and return it
-		pass
 		
 		
 ###############################################
@@ -260,16 +254,6 @@ class LinearSpline(Spline):
 		
 		# Return the result
 		return y_value
-
-	### Define a deepcopy function compatible with PrivateAttributesDecorator ###
-	def deepcopy(self):
-		# Create a copy of this object and return it
-		# Initialize a Spline object with the same inputs
-		copy_of_self = type(self)(x_values = deepcopy(self._x_values),
-								  y_values = deepcopy(self._y_values))
-
-		# Return the copied object
-		return copy_of_self
 		
 		
 ######################################################
@@ -370,13 +354,3 @@ class NaturalCubicSpline(Spline):
 
 		# Return the result
 		return y_value
-
-	### Define a deepcopy function compatible with PrivateAttributesDecorator ###
-	def deepcopy(self):
-		# Create a copy of this object and return it
-		# Initialize a Spline object with the same inputs
-		copy_of_self = type(self)(x_values = deepcopy(self._x_values),
-								  y_values = deepcopy(self._y_values))
-
-		# Return the copied object
-		return copy_of_self

@@ -32,13 +32,14 @@ ALLOWED_COLUMN_TYPES += ["BLOB", "no datatype specified"]
 ### Define the connection manager object to optimize commit frequency and perform additional checks ###
 #######################################################################################################
 # Create the decorator needed for making the attributes private
-connection_manager_decorator = privacyDecorator(["_active_flag",		# class variables
+connection_manager_decorator = privacyDecorator(["_active_flag",			# class variables
 												 "_buffer_size",
 												 "_db_connection",
 										 		 "_db_cursor",
 												 "_db_path",
 												 "_max_buffer_size",
-												 "_checkDBPath"])		# internal functions
+												 "_checkDBPath"],			# internal functions
+												 deepcopy_flag = False)		# deepcopy flag
 
 # Define the class with private attributes
 @connection_manager_decorator

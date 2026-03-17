@@ -17,6 +17,7 @@ from privacy_helper import privacyDecorator
 from type_helper import isListWithNumericEntries, isNumeric
 
 # External modules
+from copy import deepcopy
 from io import BytesIO
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
@@ -42,7 +43,7 @@ board_decorator = privacyDecorator(["_all_bevel_info_flag",			# class variables
 									"_y_shift_per_polygon",
 									"_y_upper",
 									"_checkFlags",					# internal functions
-									"_computeBounds")
+									"_computeBounds"])
 
 # Define the class with private attributes
 @board_decorator
@@ -83,7 +84,7 @@ class Board:
 
 			# Create a deepcopy if this hash is new
 			if polygon_hash not in self._unique_polygons_per_hash:
-				self._unique_polygons_per_hash[polygon_hash] = polygon.deepcopy()
+				self._unique_polygons_per_hash[polygon_hash] = deepcopy(polygon)
 
 		# Determine if all bevel and sun information of all polygons have already been preprocessed
 		self._checkFlags()
@@ -162,7 +163,7 @@ class Board:
 				new_polygon_hash = updated_hashes[polygon_hash]
 			else:
 				# Create a deepcopy of the needed polygon
-				new_polygon = self._unique_polygons_per_hash[self._hash_per_polygon[needed_index]].deepcopy()
+				new_polygon = deepcopy(self._unique_polygons_per_hash[self._hash_per_polygon[needed_index]])
 
 				# Apply the update to this polygon copy and get the new hash
 				new_polygon.preprocessBevelInfo(bevel_attitude = bevel_attitude, bevel_size = bevel_size)
@@ -215,7 +216,7 @@ class Board:
 				new_polygon_hash = updated_hashes[polygon_hash]
 			else:
 				# Create a deepcopy of the needed polygon
-				new_polygon = self._unique_polygons_per_hash[self._hash_per_polygon[needed_index]].deepcopy()
+				new_polygon = deepcopy(self._unique_polygons_per_hash[self._hash_per_polygon[needed_index]])
 
 				# Apply the update to this polygon copy and get the new hash
 				new_polygon.preprocessSunInfo(sun_angle = sun_angle, sun_attitude = sun_attitude)

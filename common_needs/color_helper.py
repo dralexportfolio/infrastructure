@@ -6,7 +6,6 @@ from privacy_helper import privacyDecorator
 from type_helper import isListWithNumericEntries, isNumeric
 
 # External modules
-from copy import deepcopy
 from math import sqrt
 from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
@@ -149,15 +148,6 @@ class RGB:
 	def __str__(self) -> str:
 		# Return a string representation of this RGB object
 		return self.asStringTuple()
-
-	### Define a deepcopy function compatible with PrivateAttributesDecorator ###
-	def deepcopy(self):
-		# Create a copy of this object and return it
-		# Initialize an RGB object with the same inputs
-		copy_of_self = type(self)((self._red_value, self._green_value, self._blue_value))
-
-		# Return the copied object
-		return copy_of_self
 
 
 #######################################################################

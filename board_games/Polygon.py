@@ -3,7 +3,6 @@
 ##########################################
 # Add paths for internal modules
 # Import dependencies
-from copy import deepcopy
 from pathlib import Path
 from sys import path
 # Get the shared infrastructure folder
@@ -17,7 +16,6 @@ from privacy_helper import privacyDecorator
 from type_helper import isListWithNumericEntries, isNumeric, tolerantlyCompare
 
 # External modules
-from copy import deepcopy
 from io import BytesIO
 from math import acos, cos, pi, sin, sqrt, tan
 import matplotlib.patches as patches
@@ -660,27 +658,6 @@ class Polygon:
 			return hash(self) != hash(other)
 		else:
 			return True
-
-	### Define a deepcopy function compatible with PrivateAttributesDecorator ###
-	def deepcopy(self):
-		# Create a copy of this object and return it
-		# Initialize a Polygon object with the same inputs
-		copy_of_self = type(self)(n_vertices = deepcopy(self._n_vertices),
-								  x_value_per_vertex = deepcopy(self._x_value_per_vertex),
-								  y_value_per_vertex = deepcopy(self._y_value_per_vertex))
-
-		# Preprocess the same bevel information (if needed)
-		if self._preprocess_bevel_flag == True:
-			copy_of_self.preprocessBevelInfo(bevel_attitude = deepcopy(self._bevel_attitude),
-											 bevel_size = deepcopy(self._bevel_size))
-
-		# Preprocess the same sun information (if needed)
-		if self._preprocess_sun_flag == True:
-			copy_of_self.preprocessSunInfo(sun_angle = deepcopy(self._sun_angle),
-										   sun_attitude = deepcopy(self._sun_attitude))
-
-		# Return the copied object
-		return copy_of_self
 
 
 ###########################################################

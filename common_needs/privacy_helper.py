@@ -12,7 +12,7 @@ from typing import Any
 #####################################################################
 ### Define a decorator used to make attributes of a class private ###
 #####################################################################
-def privacyDecorator(attribute_names:list, deepcopy_flag:bool = False):
+def privacyDecorator(attribute_names:list, deepcopy_flag:bool = True):
 	### Verify the inputs ###
 	assert isListWithStringEntries(attribute_names, allow_empty_flag = False) == True, "privacyDecorator: Provided value for 'attribute_names' must be a list object with non-empty str objects as entries"
 	assert len(set(attribute_names)) == len(attribute_names), "privacyDecorator: Provided value for 'attribute_names' must be a list of unique entries"
@@ -41,17 +41,17 @@ def privacyDecorator(attribute_names:list, deepcopy_flag:bool = False):
 			# Get the current frame of the program
 			current_frame = currentframe()
 
-			# End early with a True value if the operation is related to an allowed deepcopy operation
-			if deepcopy_flag == True:
-				for previous_frame in getouterframes(current_frame):
-					if previous_frame.filename.endswith("copy.py") and previous_frame.function == "deepcopy":
-						return True
-
 			# End early with a True value if the caller of the operation was the class itself (two levels back due to nested functions)
 			calling_frame_local_variables = current_frame.f_back.f_back.f_locals
 			if "self" in calling_frame_local_variables:
 				if isinstance(calling_frame_local_variables["self"], class_to_decorate) == True:
 					return True
+
+			# End early with a True value if the operation is related to an allowed deepcopy operation
+			if deepcopy_flag == True:
+				for previous_frame in getouterframes(current_frame):
+					if previous_frame.filename.endswith("copy.py") and previous_frame.function == "deepcopy":
+						return True
 
 			# End early with a False value if the attribute is protected from external access
 			# Handle the case of being in the explicitly defined list of private names
