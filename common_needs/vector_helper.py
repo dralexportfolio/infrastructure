@@ -252,7 +252,7 @@ class VectorField2D:
 	def generateBaseVectors(self, seed:int = None):
 		# Generate the base vectors of the vector field (using the given seed if needed)
 		# Verify the inputs
-		assert type(seed) == int, "VectorField2D::generateBaseVectors: Provided value for 'seed' must be a int object"
+		assert type(seed) == int, "VectorField2D::generateBaseVectors: Provided value for 'seed' must be an int object"
 		assert 0 <= seed and seed < 2**32, "VectorField2D::generateBaseVector: Provided value for 'seed' must be >= 0 and < 2^32"
 
 		# Mark that needed information has not been handled
