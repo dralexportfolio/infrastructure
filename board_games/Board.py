@@ -136,12 +136,12 @@ class Board:
 			self._y_upper = max(self._y_upper, y_upper_per_hash[polygon_hash] + self._y_shift_per_polygon[polygon_index])
 
 	### Define external functions for preprocessing bevel and sun information for all polygons ###
-	def preprocessBevelInfo(self, bevel_attitude:Any, bevel_size:Any, polygon_index:int = None):
+	def preprocessAllBevelInfo(self, bevel_attitude:Any, bevel_size:Any, polygon_index:int = None):
 		# Preprocess all information related to the bevel for all polygons (or a specific one if index is provided)
 		# Verify the polygon index (and leave the other inputs to be verified by the polygons themselves)
 		if polygon_index is not None:
-			assert type(polygon_index) == int, "Board::preprocessBevelInfo: If provided, value for 'polygon_index' must be an int object"
-			assert 0 <= polygon_index and polygon_index < self._n_polygons, "Board::preprocessBevelInfo: If provided, value for 'polygon_index' must be non-negative and less than the number of polygons on the board (i.e. " + str(self._n_polygons) + ")"
+			assert type(polygon_index) == int, "Board::preprocessAllBevelInfo: If provided, value for 'polygon_index' must be an int object"
+			assert 0 <= polygon_index and polygon_index < self._n_polygons, "Board::preprocessAllBevelInfo: If provided, value for 'polygon_index' must be non-negative and less than the number of polygons on the board (i.e. " + str(self._n_polygons) + ")"
 
 		# Set the indices to loop over
 		if polygon_index is not None:
@@ -193,8 +193,8 @@ class Board:
 		# Preprocess all information related to the sun for all polygons (or a specific one if index is provided)
 		# Verify the polygon index (and leave the other inputs to be verified by the polygons themselves)
 		if polygon_index is not None:
-			assert type(polygon_index) == int, "Board::preprocessSunInfo: If provided, value for 'polygon_index' must be an int object"
-			assert 0 <= polygon_index and polygon_index < self._n_polygons, "Board::preprocessSunInfo: If provided, value for 'polygon_index' must be non-negative and less than the number of polygons on the board (i.e. " + str(self._n_polygons) + ")"
+			assert type(polygon_index) == int, "Board::preprocessAllSunInfo: If provided, value for 'polygon_index' must be an int object"
+			assert 0 <= polygon_index and polygon_index < self._n_polygons, "Board::preprocessAllSunInfo: If provided, value for 'polygon_index' must be non-negative and less than the number of polygons on the board (i.e. " + str(self._n_polygons) + ")"
 
 		# Set the indices to loop over
 		if polygon_index is not None:
@@ -241,6 +241,17 @@ class Board:
 
 		# Determine if all bevel and sun information of all polygons have already been preprocessed
 		self._checkFlags()
+
+	### Define an external function for closing figures to save on memory ###
+	def closeFigures(self):
+		# Close the figures associated with all polygons and reset the flags
+		# Loop over the polygons and
+		for polygon_hash in self._hash_per_polygon:
+			self._unique_polygons_per_hash[polygon_hash].closeFigure()
+
+		# Get the render information flags to be False
+		self._all_bevel_info_flag = False
+		self._all_sun_info_flag = False
 
 	### Define external functions for rendering the board as a single image ###
 	def setTintShade(self, tint_shade:RGB, polygon_index:int = None):
@@ -331,14 +342,3 @@ class Board:
 
 		# Return the result
 		return board_render
-
-	### Define an external function for closing figures to save on memory ###
-	def closeFigures(self):
-		# Close the figures associated with all polygons and reset the flags
-		# Loop over the polygons and
-		for polygon_hash in self._hash_per_polygon:
-			self._unique_polygons_per_hash[polygon_hash].closeFigure()
-
-		# Get the render information flags to be False
-		self._all_bevel_info_flag = False
-		self._all_sun_info_flag = False
