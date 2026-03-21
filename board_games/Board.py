@@ -331,3 +331,14 @@ class Board:
 
 		# Return the result
 		return board_render
+
+	### Define an external function for closing figures to save on memory ###
+	def closeFigures(self):
+		# Close the figures associated with all polygons and reset the flags
+		# Loop over the polygons and
+		for polygon_hash in self._hash_per_polygon:
+			self._unique_polygons_per_hash[polygon_hash].closeFigure()
+
+		# Get the render information flags to be False
+		self._all_bevel_info_flag = False
+		self._all_sun_info_flag = False
