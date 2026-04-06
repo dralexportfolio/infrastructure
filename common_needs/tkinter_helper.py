@@ -5,13 +5,13 @@
 from pathlib import Path, PosixPath, WindowsPath
 from typing import Any, Union
 
+# Built-in modules
+from tkinter import Canvas, Tk
+from tkinter.filedialog import askdirectory, askopenfilename, asksaveasfilename
+
 # Internal modules
 from color_helper import RGB
 from type_helper import isListWithStringEntries, isNumeric
-
-# External modules
-from tkinter import Canvas, Tk
-from tkinter.filedialog import askdirectory, askopenfilename, asksaveasfilename
 
 
 ##################################################################
