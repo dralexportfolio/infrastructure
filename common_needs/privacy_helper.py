@@ -73,7 +73,7 @@ def privacyDecorator(attribute_names:list, deepcopy_flag:bool = True):
 		# Define the function implementing the modified __getattribute__ functionality
 		def __modified__getattribute__(self, attribute_name:str) -> Any:
 			# Return the original function's value if access is allowed, otherwise raise an error
-			if determineIfAccessAllowed(attribute_name = attribute_name) == True:
+			if _determineIfAccessAllowed(attribute_name = attribute_name) == True:
 				return class_to_decorate.__original__getattribute__(self, attribute_name)
 			else:
 				raise AttributeError("privacyDecorator::implementPrivacy::__modified__getattribute__: Unable to call '__getattribute__' on the attribute named '" + attribute_name + "' due to it being private")
@@ -81,7 +81,7 @@ def privacyDecorator(attribute_names:list, deepcopy_flag:bool = True):
 		# Define the function implementing the modified __getattr__ functionality
 		def __modified__getattr__(self, attribute_name:str) -> Any:
 			# Return the original function's value if access is allowed, otherwise raise an error
-			if determineIfAccessAllowed(attribute_name = attribute_name) == True:
+			if _determineIfAccessAllowed(attribute_name = attribute_name) == True:
 				return class_to_decorate.__original__getattr__(self, attribute_name)
 			else:
 				raise AttributeError("privacyDecorator::implementPrivacy::__modified__getattr__: Unable to call '__getattr__' on the attribute named '" + attribute_name + "' due to it being private")
@@ -89,7 +89,7 @@ def privacyDecorator(attribute_names:list, deepcopy_flag:bool = True):
 		# Define the function implementing the modified __setattr__ functionality
 		def __modified__setattr__(self, attribute_name:str, attribute_value:Any):
 			# Return the original function's value if access is allowed, otherwise raise an error
-			if determineIfAccessAllowed(attribute_name = attribute_name) == True:
+			if _determineIfAccessAllowed(attribute_name = attribute_name) == True:
 				return class_to_decorate.__original__setattr__(self, attribute_name, attribute_value)
 			else:
 				raise AttributeError("privacyDecorator::implementPrivacy::__modified__setattr__: Unable to call '__setattr__' on the attribute named '" + attribute_name + "' due to it being private")
@@ -97,7 +97,7 @@ def privacyDecorator(attribute_names:list, deepcopy_flag:bool = True):
 		# Define the function implementing the modified __delattr__ functionality
 		def __modified__delattr__(self, attribute_name:str):
 			# Return the original function's value if access is allowed, otherwise raise an error
-			if determineIfAccessAllowed(attribute_name = attribute_name) == True:
+			if _determineIfAccessAllowed(attribute_name = attribute_name) == True:
 				return class_to_decorate.__original__delattr__(self, attribute_name)
 			else:
 				raise AttributeError("privacyDecorator::implementPrivacy::__modified__delattr__: Unable to call '__delattr__' on the attribute named '" + attribute_name + "' due to it being private")
