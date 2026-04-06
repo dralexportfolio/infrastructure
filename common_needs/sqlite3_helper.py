@@ -1,15 +1,15 @@
 ##########################################
 ### Import needed general dependencies ###
 ##########################################
-# Internal modules
-from privacy_helper import privacyDecorator
-from type_helper import isDictionaryWithStringKeys, isListWithStringEntries
-
-# External modules
+# Built-in modules
 from os.path import exists
 from pathlib import Path, PosixPath, WindowsPath
 from sqlite3 import connect, Connection, Cursor
 from typing import Any, Tuple, Union
+
+# Internal modules
+from privacy_helper import privacyDecorator
+from type_helper import isDictionaryWithStringKeys, isListWithStringEntries
 
 
 ####################################################

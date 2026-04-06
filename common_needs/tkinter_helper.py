@@ -1,15 +1,17 @@
 ##########################################
 ### Import needed general dependencies ###
 ##########################################
+# Built-in modules
+from pathlib import Path, PosixPath, WindowsPath
+from typing import Any, Union
+
 # Internal modules
 from color_helper import RGB
 from type_helper import isListWithStringEntries, isNumeric
 
 # External modules
-from pathlib import Path, PosixPath, WindowsPath
 from tkinter import Canvas, Tk
 from tkinter.filedialog import askdirectory, askopenfilename, asksaveasfilename
-from typing import Any, Union
 
 
 ##################################################################

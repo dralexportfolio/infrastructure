@@ -1,12 +1,12 @@
 ##########################################
 ### Import needed general dependencies ###
 ##########################################
-# Internal modules
-from type_helper import isListWithStringEntries
-
-# External modules
+# Built-in modules
 from inspect import currentframe, getouterframes
 from typing import Any
+
+# Internal modules
+from type_helper import isListWithStringEntries
 
 
 #####################################################################

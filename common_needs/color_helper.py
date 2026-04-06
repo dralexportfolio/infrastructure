@@ -1,16 +1,18 @@
 ##########################################
 ### Import needed general dependencies ###
 ##########################################
+# Built-in modules
+from math import sqrt
+from typing import Any, Tuple
+
 # Internal modules
 from privacy_helper import privacyDecorator
 from type_helper import isListWithNumericEntries, isNumeric
 
 # External modules
-from math import sqrt
 from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
 from plotly.express import colors
-from typing import Any, Tuple
 
 
 #############################################

@@ -10,6 +10,16 @@ infrastructure_folder = Path(__file__).parent.parent
 # Add the needed paths
 path.insert(0, str(infrastructure_folder.joinpath("common_needs")))
 
+# Built-in modules
+from functools import partial
+from math import sqrt
+from multiprocessing import Pool, Process, Manager
+from multiprocessing.managers import BaseProxy
+from os import cpu_count, remove
+from os.path import exists
+from pathlib import PosixPath, WindowsPath
+from typing import Any, Tuple, Union
+
 # Internal modules
 from color_helper import customSpectrum
 from dimension_reduction import performPCA
@@ -18,21 +28,13 @@ from tkinter_helper import askSaveFilename
 from type_helper import isNumeric
 
 # External modules
-from functools import partial
-from math import sqrt
 from matplotlib.cm import ScalarMappable
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
-from multiprocessing import Pool, Process, Manager
-from multiprocessing.managers import BaseProxy
 from numpy import array, cumsum, frombuffer, mean, ndarray, zeros
 from numpy.linalg import norm
-from os import cpu_count, remove
-from os.path import exists
-from pathlib import PosixPath, WindowsPath
 import plotly.graph_objects as go
 from scipy.special import softmax
-from typing import Any, Tuple, Union
 
 
 ################################################################################################

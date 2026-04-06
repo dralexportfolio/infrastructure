@@ -10,6 +10,12 @@ infrastructure_folder = Path(__file__).parent.parent
 # Add the needed paths
 path.insert(0, str(infrastructure_folder.joinpath("dimensional_analysis")))
 
+# Built-in modules
+from math import cos, pi, sin
+from multiprocessing import Pool
+from os import cpu_count
+from typing import Any, Tuple
+
 # Internal modules
 from dimension_reduction import performPCA
 from privacy_helper import privacyDecorator
@@ -17,15 +23,11 @@ from tkinter_helper import askSaveFilename
 from type_helper import isNumeric
 
 # External modules
-from math import cos, pi, sin
-from multiprocessing import Pool
 from numpy import dot, ndarray, random, uint8, zeros
 from numpy import max as np_max
 from numpy import min as np_min
-from os import cpu_count
 from PIL.Image import fromarray
 from scipy.special import softmax
-from typing import Any, Tuple
 
 
 ##########################################################################################################

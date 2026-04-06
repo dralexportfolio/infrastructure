@@ -10,20 +10,22 @@ infrastructure_folder = Path(__file__).parent.parent
 # Add the needed paths
 path.insert(0, str(infrastructure_folder.joinpath("common_needs")))
 
+# Built-in modules
+from io import BytesIO
+from math import acos, cos, pi, sin, sqrt, tan
+from typing import Any
+
 # Internal modules
 from color_helper import RGB
 from privacy_helper import privacyDecorator
 from type_helper import isListWithNumericEntries, isNumeric, tolerantlyCompare
 
 # External modules
-from io import BytesIO
-from math import acos, cos, pi, sin, sqrt, tan
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 from numpy import array, matmul, zeros
 from numpy.linalg import det, inv, norm
 from PIL import Image
-from typing import Any
 
 
 ####################################################################

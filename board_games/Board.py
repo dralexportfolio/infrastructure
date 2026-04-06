@@ -10,6 +10,11 @@ infrastructure_folder = Path(__file__).parent.parent
 # Add the needed paths
 path.insert(0, str(infrastructure_folder.joinpath("common_needs")))
 
+# Built-in modules
+from copy import deepcopy
+from io import BytesIO
+from typing import Any
+
 # Internal modules
 from color_helper import RGB
 from Polygon import Polygon
@@ -17,13 +22,10 @@ from privacy_helper import privacyDecorator
 from type_helper import isListWithNumericEntries, isNumeric
 
 # External modules
-from copy import deepcopy
-from io import BytesIO
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 from numpy import zeros
 from PIL import Image
-from typing import Any
 
 
 ############################################################

@@ -10,13 +10,13 @@ infrastructure_folder = Path(__file__).parent.parent
 # Add the needed paths
 path.insert(0, str(infrastructure_folder.joinpath("common_needs")))
 
+# Built-in modules
+from abc import ABC, abstractmethod
+from typing import Tuple
+
 # Internal modules
 from privacy_helper import privacyDecorator
 from type_helper import isListWithNumericEntries
-
-# External modules
-from abc import ABC, abstractmethod
-from typing import Tuple
 
 
 ####################################################################################

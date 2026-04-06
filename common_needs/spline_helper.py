@@ -1,18 +1,20 @@
 ##########################################
 ### Import needed general dependencies ###
 ##########################################
+# Built-in modules
+from abc import ABC, abstractmethod
+from typing import Any, Tuple
+
 # Internal modules
 from privacy_helper import privacyDecorator
 from tkinter_helper import askSaveFilename
 from type_helper import isListWithNumericEntries, isNumeric
 
 # External modules
-from abc import ABC, abstractmethod
 import matplotlib.pyplot as plt
 from numpy import matmul, zeros
 from numpy.linalg import inv
 import plotly.graph_objects as go
-from typing import Any, Tuple
 
 
 ###########################################################
