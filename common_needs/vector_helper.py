@@ -11,7 +11,7 @@ infrastructure_folder = Path(__file__).parent.parent
 path.insert(0, str(infrastructure_folder.joinpath("dimensional_analysis")))
 
 # Built-in modules
-from math import cos, pi, sin
+from math import cos, pi, sin, sqrt
 from multiprocessing import Pool
 from os import cpu_count
 from typing import Any, Tuple
@@ -196,7 +196,9 @@ class VectorField2D:
 	def __init__(self, n_rows:int, n_cols:int, **kwargs):
 		# Verify the inputs
 		assert type(n_rows) == int, "VectorField2D::__init__: Provided value for 'n_rows' must be an int object"
+		assert 100 <= n_rows and n_rows <= 5000, "VectorField2D::__init__: Provided value for 'n_rows' must be >= 100 and <= 5000"
 		assert type(n_cols) == int, "VectorField2D::__init__: Provided value for 'n_cols' must be an int object"
+		assert 100 <= n_cols and n_cols <= 5000, "VectorField2D::__init__: Provided value for 'n_cols' must be >= 100 and <= 5000"
 		for key in kwargs:
 			assert key in self._DEFAULT_VALUES, "VectorField2D::__init__: Provided keyword arguments must be keys in '_DEFAULT_VALUES'"
 		
@@ -354,7 +356,7 @@ class VectorField2D:
 		# Mark that the remaining vectors have been computed
 		self._remaining_vectors_computed_flag = True
 
-	### Define functions for computing and displaying information about the vector field ###
+	### Define functions for computing and displaying curl and divergence of the vector field ###
 	def computeAllCurlDivergence(self):
 		# Compute all curl and divergence values for the vector field
 		# Only proceed if all vectors have been generated
@@ -392,12 +394,15 @@ class VectorField2D:
 		# Mark that the curl and divergence have been computed
 		self._curl_divergence_computed_flag = True
 
-	def plotCurl(self, show_flag:bool = True, save_flag:bool = False):
+	def plotCurl(self, circle_flag:bool = False, show_flag:bool = True, save_flag:bool = False):
 		# Plot the curl of the vector field
 		# Only proceed if curl and divergence have been computed
 		assert self._curl_divergence_computed_flag == True, "VectorField2D::plotCurl: Only able to plot curl and divergence once all curl and divergence values have been generated"
 
 		# Verify the inputs
+		# Circle flag
+		assert type(circle_flag) == bool, "VectorField2D::plotCurl: Provided value for 'circle_flag' must be a bool object"
+		# Show/save flags
 		assert type(show_flag) == bool, "VectorField2D::plotCurl: Provided value for 'show_flag' must be a bool object"
 		assert type(save_flag) == bool, "VectorField2D::plotCurl: Provided value for 'save_flag' must be a bool object"
 		assert show_flag == True or save_flag == True, "VectorField2D::plotCurl: At least of the provided values for 'show_flag' and 'save_flag' must be True"
@@ -424,6 +429,31 @@ class VectorField2D:
 				elif curl < 0:
 					curl_rgb_array[row_index, col_index, 0] = int(-255 * curl / max_magnitude_curl)
 
+		# Draw white circles around the base vector locations (if needed)
+		if circle_flag == True:
+			# Set the circle's radius
+			circle_radius = int(0.01 * min(self._n_rows, self._n_cols))
+
+			# Loop over the base points and draw the circle at each
+			for base_vector_index in range(self._n_base_vectors):
+				# Get the row and column indices of the base vector
+				base_row_index = self._all_base_vector_locations_row[base_vector_index]
+				base_col_index = self._all_base_vector_locations_col[base_vector_index]
+
+				# Loop over nearby indices and set to white (if needed)
+				for row_index in range(base_row_index - circle_radius, base_row_index + circle_radius):
+					if 0 <= row_index and row_index < self._n_rows:
+						for col_index in range(base_col_index - circle_radius, base_col_index + circle_radius):
+							if 0 <= col_index and col_index < self._n_cols:
+								# Compute the current distance
+								current_distance = sqrt((base_row_index - row_index)**2 + (base_col_index - col_index)**2)
+
+								# Set to white or black if sufficiently close
+								if current_distance <= circle_radius / 2:
+									curl_rgb_array[row_index, col_index, :] = 255
+								elif current_distance <= circle_radius:
+									curl_rgb_array[row_index, col_index, :] = 0
+
 		# Create the image from the RGB array
 		curl_image = fromarray(curl_rgb_array.astype(uint8), "RGB")
 
@@ -439,12 +469,15 @@ class VectorField2D:
 			# Save the image to this location
 			curl_image.save(image_path, "PNG")
 
-	def plotDivergence(self, show_flag:bool = True, save_flag:bool = False):
+	def plotDivergence(self, circle_flag:bool = False, show_flag:bool = True, save_flag:bool = False):
 		# Plot the divergence of the vector field
 		# Only proceed if curl and divergence have been computed
 		assert self._curl_divergence_computed_flag == True, "VectorField2D::plotDivergence: Only able to plot curl and divergence once all curl and divergence values have been generated"
 
 		# Verify the inputs
+		# Circle flag
+		assert type(circle_flag) == bool, "VectorField2D::plotDivergence: Provided value for 'circle_flag' must be a bool object"
+		# Show/save flags
 		assert type(show_flag) == bool, "VectorField2D::plotDivergence: Provided value for 'show_flag' must be a bool object"
 		assert type(save_flag) == bool, "VectorField2D::plotDivergence: Provided value for 'save_flag' must be a bool object"
 		assert show_flag == True or save_flag == True, "VectorField2D::plotDivergence: At least of the provided values for 'show_flag' and 'save_flag' must be True"
@@ -471,6 +504,31 @@ class VectorField2D:
 				elif divergence < 0:
 					divergence_rgb_array[row_index, col_index, 0] = int(-255 * divergence / max_magnitude_divergence)
 
+		# Draw white circles around the base vector locations (if needed)
+		if circle_flag == True:
+			# Set the circle's radius
+			circle_radius = int(0.01 * min(self._n_rows, self._n_cols))
+
+			# Loop over the base points and draw the circle at each
+			for base_vector_index in range(self._n_base_vectors):
+				# Get the row and column indices of the base vector
+				base_row_index = self._all_base_vector_locations_row[base_vector_index]
+				base_col_index = self._all_base_vector_locations_col[base_vector_index]
+
+				# Loop over nearby indices and set to white (if needed)
+				for row_index in range(base_row_index - circle_radius, base_row_index + circle_radius):
+					if 0 <= row_index and row_index < self._n_rows:
+						for col_index in range(base_col_index - circle_radius, base_col_index + circle_radius):
+							if 0 <= col_index and col_index < self._n_cols:
+								# Compute the current distance
+								current_distance = sqrt((base_row_index - row_index)**2 + (base_col_index - col_index)**2)
+
+								# Set to white or black if sufficiently close
+								if current_distance <= circle_radius / 2:
+									divergence_rgb_array[row_index, col_index, :] = 255
+								elif current_distance <= circle_radius:
+									divergence_rgb_array[row_index, col_index, :] = 0
+
 		# Create the image from the RGB array
 		divergence_image = fromarray(divergence_rgb_array.astype(uint8), "RGB")
 
@@ -486,7 +544,7 @@ class VectorField2D:
 			# Save the image to this location
 			divergence_image.save(image_path, "PNG")
 
-	def plotPCA(self, unclipped_flag:bool = True, keep_positive_flag:bool = False, keep_negative_flag:bool = False, show_flag:bool = True, save_flag:bool = False):
+	def plotPCA(self, unclipped_flag:bool = True, keep_positive_flag:bool = False, keep_negative_flag:bool = False, circle_flag:bool = False, show_flag:bool = True, save_flag:bool = False):
 		# Plot the PCA combination of curl and divergence of the vector field
 		# Only proceed if curl and divergence have been computed
 		assert self._curl_divergence_computed_flag == True, "VectorField2D::plotPCA: Only able to plot curl and divergence once all curl and divergence values have been generated"
@@ -497,6 +555,8 @@ class VectorField2D:
 		assert type(keep_positive_flag) == bool, "VectorField2D::plotPCA: Provided value for 'keep_positive_flag' must be a bool object"
 		assert type(keep_negative_flag) == bool, "VectorField2D::plotPCA: Provided value for 'keep_negative_flag' must be a bool object"
 		assert unclipped_flag == True or keep_positive_flag == True or keep_negative_flag == True, "VectorField2D::plotPCA: At least of the provided values for 'unclipped_flag', 'keep_positive_flag' and 'keep_negative_flag' must be True"
+		# Circle flag
+		assert type(circle_flag) == bool, "VectorField2D::plotPCA: Provided value for 'circle_flag' must be a bool object"
 		# Show/save flags
 		assert type(show_flag) == bool, "VectorField2D::plotPCA: Provided value for 'show_flag' must be a bool object"
 		assert type(save_flag) == bool, "VectorField2D::plotPCA: Provided value for 'save_flag' must be a bool object"
@@ -585,6 +645,35 @@ class VectorField2D:
 					pca_keep_positive_rgb_array[row_index, col_index, 2] = int(255 * raw_blue_value / positive_normalizer)
 				elif raw_blue_value < 0:
 					pca_keep_negative_rgb_array[row_index, col_index, 2] = int(255 * raw_blue_value / negative_normalizer)
+
+		# Draw white circles around the base vector locations (if needed)
+		if circle_flag == True:
+			# Set the circle's radius
+			circle_radius = int(0.01 * min(self._n_rows, self._n_cols))
+
+			# Loop over the base points and draw the circle at each
+			for base_vector_index in range(self._n_base_vectors):
+				# Get the row and column indices of the base vector
+				base_row_index = self._all_base_vector_locations_row[base_vector_index]
+				base_col_index = self._all_base_vector_locations_col[base_vector_index]
+
+				# Loop over nearby indices and set to white (if needed)
+				for row_index in range(base_row_index - circle_radius, base_row_index + circle_radius):
+					if 0 <= row_index and row_index < self._n_rows:
+						for col_index in range(base_col_index - circle_radius, base_col_index + circle_radius):
+							if 0 <= col_index and col_index < self._n_cols:
+								# Compute the current distance
+								current_distance = sqrt((base_row_index - row_index)**2 + (base_col_index - col_index)**2)
+
+								# Set to white or black if sufficiently close
+								if current_distance <= circle_radius / 2:
+									pca_unclipped_rgb_array[row_index, col_index, :] = 255
+									pca_keep_positive_rgb_array[row_index, col_index, :] = 255
+									pca_keep_negative_rgb_array[row_index, col_index, :] = 255
+								elif current_distance <= circle_radius:
+									pca_unclipped_rgb_array[row_index, col_index, :] = 0
+									pca_keep_positive_rgb_array[row_index, col_index, :] = 0
+									pca_keep_negative_rgb_array[row_index, col_index, :] = 0
 
 		# Create the images from the RGB arrays
 		pca_unclipped_image = fromarray(pca_unclipped_rgb_array.astype(uint8), "RGB")
