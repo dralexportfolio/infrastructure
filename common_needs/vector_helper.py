@@ -23,7 +23,8 @@ from tkinter_helper import askSaveFilename
 from type_helper import isNumeric
 
 # External modules
-from numpy import dot, ndarray, random, uint8, zeros
+import matplotlib.pyplot as plt
+from numpy import dot, meshgrid, ndarray, random, uint8, zeros
 from numpy import max as np_max
 from numpy import min as np_min
 from PIL.Image import fromarray
@@ -355,6 +356,79 @@ class VectorField2D:
 
 		# Mark that the remaining vectors have been computed
 		self._remaining_vectors_computed_flag = True
+
+	### Define a function for plotting the vector field ###
+	def plotField(self, gap_size:int, plot_type:str, show_flag:bool = True, save_flag:bool = False):
+		# Create a plot of the vector field using matplotlib
+		# Only proceed if all vectors have been generated
+		assert self._remaining_vectors_computed_flag == True, "VectorField2D::plotField: Only able to plot vector field once all vectors have been generated"
+
+		# Verify the inputs
+		# Gap size
+		assert type(gap_size) == int, "VectorField2D::plotField: Provided value for 'gap_size' must be an int object"
+		assert gap_size >= 10, "VectorField2D::plotField: Provided value for 'gap_size' must be >= 10"
+		assert gap_size <= self._n_rows / 4, "VectorField2D::plotField: Provided value for 'gap_size' must be <= 25% of the number of rows"
+		assert gap_size <= self._n_cols / 4, "VectorField2D::plotField: Provided value for 'gap_size' must be <= 25% of the number of columns"
+		# Plot type
+		assert plot_type in ["quiver", "streamplot"], "VectorField2D::plotField: Provided value for 'plot_type' must be 'quiver' or 'streamplot'"
+		# Show/save flags
+		assert type(show_flag) == bool, "VectorField2D::plotField: Provided value for 'show_flag' must be a bool object"
+		assert type(save_flag) == bool, "VectorField2D::plotField: Provided value for 'save_flag' must be a bool object"
+		assert show_flag == True or save_flag == True, "VectorField2D::plotField: At least of the provided values for 'show_flag' and 'save_flag' must be True"
+
+		# Create 1D arrays used to sample the rows and columns
+		# Get the numbers x and y samples
+		n_samples_x = int((self._n_cols - 1) / gap_size)
+		n_samples_y = int((self._n_rows - 1) / gap_size)
+		# Compute the shifts needed to center the grid
+		shift_x = int(((self._n_cols - 1) - (n_samples_x * gap_size)) / 2)
+		shift_y = int(((self._n_rows - 1) - (n_samples_y * gap_size)) / 2)
+		# Generate the lists of x-value and y-value locations
+		x_loc_list = [shift_x + gap_size * index for index in range(n_samples_x)]
+		y_loc_list = [shift_y + gap_size * index for index in range(n_samples_y)]
+
+		# Convert these lists to arrays using meshgrid
+		x_loc_array, y_loc_array = meshgrid(x_loc_list, y_loc_list)
+
+		# Extract the directions at these points
+		# Initialize the arrays
+		x_dir_array = zeros((n_samples_y, n_samples_x), dtype = float)
+		y_dir_array = zeros((n_samples_y, n_samples_x), dtype = float)
+		# Get the directions
+		for y_index in range(n_samples_y):
+			for x_index in range(n_samples_x):
+				# Get the row and column indices
+				row_index = y_loc_array[y_index, x_index]
+				col_index = x_loc_array[y_index, x_index]
+				# Store the vector
+				x_dir_array[y_index, x_index] = self._all_vectors_x[row_index, col_index]
+				y_dir_array[y_index, x_index] = self._all_vectors_y[row_index, col_index]
+
+		# Create the figure representing the vector field
+		# Create the figure
+		plt.figure(figsize = (10, 8), layout = "constrained")
+		# Add the needed traces and set the title
+		if plot_type == "quiver":
+			plt.quiver(x_loc_array, y_loc_array, x_dir_array, y_dir_array)
+			plt.title("Quiver Representation Of The Generated Vector Field")
+		else:
+			plt.streamplot(x_loc_array, y_loc_array, x_dir_array, y_dir_array)
+			plt.title("Streamplot Representation Of The Generated Vector Field")
+		# Format the figure
+		plt.xlabel("columm index")
+		plt.ylabel("row index")
+
+		# Show the figure (if needed)
+		if show_flag == True:
+			plt.show()
+
+		# Save the figure (if needed)
+		if save_flag == True:
+			# Get a path to which the figure should be saved and make sure cancel wasn't clicked
+			figure_path = askSaveFilename(allowed_extensions = ["png"])
+			assert figure_path is not None, "VectorField2D::plotField: Unable to save figure because cancel button was clicked"
+			# Save the figure to this location
+			plt.savefig(figure_path)
 
 	### Define functions for computing and displaying curl and divergence of the vector field ###
 	def computeAllCurlDivergence(self):
