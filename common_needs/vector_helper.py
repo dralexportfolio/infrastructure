@@ -294,13 +294,12 @@ class VectorField:
 		plt.figure(figsize = (10, 8), layout = "constrained")
 		# Add the needed traces and set the title
 		if plot_type == "quiver":
-			# Plot as is, quiver can be flipped after
+			# Plot as is since quiver can be flipped after
 			plt.quiver(x_loc_array, y_loc_array, x_dir_array, y_dir_array)
 			plt.title("Quiver Representation Of The Generated Vector Field")
 		else:
-			# Plot with flipped and negated y-values, streamplots can't be flipped after
+			# Plot additively inverted y-values since streamplots can't be flipped after
 			plt.streamplot(x_loc_array, y_loc_array, x_dir_array, -y_dir_array)
-			#plt.streamplot(x_loc_array, y_loc_array, flipud(x_dir_array), -flipud(y_dir_array))
 			plt.title("Streamplot Representation Of The Generated Vector Field")
 		# Format the figure
 		plt.xlabel("columm index")
