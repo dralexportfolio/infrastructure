@@ -24,7 +24,7 @@ from type_helper import isNumeric
 
 # External modules
 import matplotlib.pyplot as plt
-from numpy import all, any, dot, isnan, isreal, meshgrid, ndarray, random, uint8, zeros
+from numpy import all, any, dot, flipud, isnan, isreal, meshgrid, ndarray, random, uint8, zeros
 from numpy import max as np_max
 from numpy import min as np_min
 from PIL import Image
@@ -294,10 +294,13 @@ class VectorField:
 		plt.figure(figsize = (10, 8), layout = "constrained")
 		# Add the needed traces and set the title
 		if plot_type == "quiver":
+			# Plot as is, quiver can be flipped after
 			plt.quiver(x_loc_array, y_loc_array, x_dir_array, y_dir_array)
 			plt.title("Quiver Representation Of The Generated Vector Field")
 		else:
-			plt.streamplot(x_loc_array, y_loc_array, x_dir_array, y_dir_array)
+			# Plot with flipped and negated y-values, streamplots can't be flipped after
+			plt.streamplot(x_loc_array, y_loc_array, x_dir_array, -y_dir_array)
+			#plt.streamplot(x_loc_array, y_loc_array, flipud(x_dir_array), -flipud(y_dir_array))
 			plt.title("Streamplot Representation Of The Generated Vector Field")
 		# Format the figure
 		plt.xlabel("columm index")
@@ -355,7 +358,7 @@ class VectorField:
 		# Mark that the curl and divergence have been computed
 		self._derivatives_computed_flag = True
 
-	def renderDerivativeInfo(self, curl_flag:bool, divergence_flag:bool, jacobian_flag:bool, circle_flag:bool = False, show_flag:bool = True, save_flag:bool = False) -> Image.Image:
+	def renderDerivativeInfo(self, curl_flag:bool, divergence_flag:bool, jacobian_flag:bool, show_flag:bool = True, save_flag:bool = False) -> Image.Image:
 		# Render the needed combination of derivative-related values of the vector field, return the resulting PIL image object
 		# Only proceed if derivative-related values have been computed
 		assert self._derivatives_computed_flag == True, "VectorField::renderDerivativeInfo: Only able to plot derivative-related values once they have been generated"
@@ -366,8 +369,6 @@ class VectorField:
 		assert type(divergence_flag) == bool, "VectorField::rednerDerivativeInfo: Provided value for 'divergence_flag' must be a bool object"
 		assert type(jacobian_flag) == bool, "VectorField::renderDerivativeInfo: Provided value for 'jacobian_flag' must be a bool object"
 		assert (curl_flag == True) or (divergence_flag == True) or (jacobian_flag == True), "VectorField::renderDerivativeInfo: At least one of the provided values for 'curl_flag', 'divergence_flag' and 'jacobian_flag' must be True"
-		# Circle flag
-		assert type(circle_flag) == bool, "VectorField::renderDerivativeInfo: Provided value for 'circle_flag' must be a bool object"
 		# Show/save flags
 		assert type(show_flag) == bool, "VectorField::renderDerivativeInfo: Provided value for 'show_flag' must be a bool object"
 		assert type(save_flag) == bool, "VectorField::renderDerivativeInfo: Provided value for 'save_flag' must be a bool object"
@@ -474,31 +475,6 @@ class VectorField:
 						derivative_rgb_array[row_index, col_index, 0] = 127
 						derivative_rgb_array[row_index, col_index, 1] = 127
 						derivative_rgb_array[row_index, col_index, 2] = 127
-
-		# Draw white circles around the base vector locations (if needed)
-		if circle_flag == True:
-			# Set the circle's radius
-			circle_radius = int(0.01 * min(self._n_rows, self._n_cols))
-
-			# Loop over the base points and draw the circle at each
-			for base_vector_index in range(self._n_base_vectors):
-				# Get the row and column indices of the base vector
-				base_row_index = self._all_base_vector_locations_row[base_vector_index]
-				base_col_index = self._all_base_vector_locations_col[base_vector_index]
-
-				# Loop over nearby indices and set to white (if needed)
-				for row_index in range(base_row_index - circle_radius, base_row_index + circle_radius):
-					if 0 <= row_index and row_index < self._n_rows:
-						for col_index in range(base_col_index - circle_radius, base_col_index + circle_radius):
-							if 0 <= col_index and col_index < self._n_cols:
-								# Compute the current distance
-								current_distance = sqrt((base_row_index - row_index)**2 + (base_col_index - col_index)**2)
-
-								# Set to white or black if sufficiently close
-								if current_distance <= circle_radius / 2:
-									curl_rgb_array[row_index, col_index, :] = 255
-								elif current_distance <= circle_radius:
-									curl_rgb_array[row_index, col_index, :] = 0
 
 		# Create the image from the RGB array
 		derivative_image = Image.fromarray(derivative_rgb_array.astype(uint8), "RGB")
