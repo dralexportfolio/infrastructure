@@ -85,7 +85,13 @@ def performPCA(raw_data_array:ndarray, normalize_flag:bool = False, center_vecto
 		ordered_principal_components[:, parameter_index] = v_array_transpose[decreasing_index_order[parameter_index], :]
 
 	# Convert the ordered singular values stored to percent variances
-	ordered_percent_variances = 100 * ordered_singular_values**2 / sum(ordered_singular_values**2)
+	denominator = sum(ordered_singular_values**2)
+	if denominator > 0:
+		ordered_percent_variances = 100 * ordered_singular_values**2 / sum(ordered_singular_values**2)
+	else:
+		ordered_percent_variances = zeros(n_parameters, dtype = float)
+		for parameter_index in range(n_parameters):
+			ordered_percent_variances = 100 / n_parameters
 	
 	# Project the normalized data onto the principal directions in decreasing variance order (will be n_points x n_parameters)
 	projected_data_array = matmul(normalized_data_array, ordered_principal_components)
