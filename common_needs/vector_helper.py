@@ -302,6 +302,7 @@ class VectorField:
 		# Format the figure
 		plt.xlabel("columm index")
 		plt.ylabel("row index")
+		plt.gca().invert_yaxis()
 
 		# Show the figure (if needed)
 		if show_flag == True:
