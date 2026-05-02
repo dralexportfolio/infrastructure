@@ -71,7 +71,7 @@ class ConnectionManager:
 		assert self._db_path.name.endswith(".db") == True, "ConnectionManager::_checkDBPath: Stored value for 'db_path' must refer to a filename ending with '.db'"
 		assert len(self._db_path.name) > 3, "ConnectionManager::_checkDBPath: Stored value for 'db_path' must refer to a filename of length > 3"
 
-		# Make sure the file exists
+		# Make sure the folder exists
 		assert exists(self._db_path.parent) == True, "ConnectionManager::_checkDBPath: Stored value for 'db_path' must refer to a filename in an existing folder"
 
 		# Connect to the db file and create a cursor
