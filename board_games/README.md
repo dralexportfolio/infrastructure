@@ -22,7 +22,7 @@ The 'board_games' repository contains the building blocks needed for rendering g
 
 ### Polygon Class
 
-#### Polygon.\__init\__
+#### Polygon.\_\_init\_\_
 
 #### Polygon.rotate
 
