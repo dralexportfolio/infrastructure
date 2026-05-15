@@ -24,7 +24,7 @@ The 'board_games' repository contains the building blocks needed for rendering g
 
 #### Polygon.\_\_init\_\_
 
-#### Polygon.rotate
+- Polygon.rotate
 
 #### Polygon.scale
 
