@@ -6,7 +6,7 @@ The 'board_games' repository contains the building blocks needed for rendering g
 
 ### Board Class
 
-#### Board.__init__
+#### Board.\__init\__
 
 #### Board. preprocessAllBevelInfo
 
@@ -22,7 +22,7 @@ The 'board_games' repository contains the building blocks needed for rendering g
 
 ### Polygon Class
 
-#### Polygon.__init__
+#### Polygon.\__init\__
 
 #### Polygon.rotate
 
