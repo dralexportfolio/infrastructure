@@ -4,36 +4,58 @@ The 'board_games' repository contains the building blocks needed for rendering g
 
 ## Board.py
 
-### __init__
+### Board Class
 
-### preprocessAllBevelInfo
+#### Board.__init__
 
-### preprocessAllSunInfo
+#### Board. preprocessAllBevelInfo
 
-### closeFigures
+#### Board. preprocessAllSunInfo
 
-### setTintShade
+#### Board. closeFigures
 
-### render
+#### Board. setTintShade
+
+#### Board. render
 
 ## Polygon.py
 
 ### Polygon Class
 
-#### __init__
+#### Polygon.__init__
 
-#### rotate
+#### Polygon.rotate
 
-#### scale
+#### Polygon.scale
 
-#### closeFigure
+#### Polygon.closeFigure
 
-#### preprocessBevelInfo
+#### Polygon.preprocessBevelInfo
 
-#### preprocessSunInfo
+#### Polygon.preprocessSunInfo
 
-#### computeRenderInfo
+#### Polygon.computeRenderInfo
 
-#### render
+#### Polygon.render
 
-#### getInfo
+#### Polygon.getInfo
+
+### Defined Objects
+
+#### SQUARE_1x1
+
+#### TRIANGLE_1x1_NE
+
+#### TRIANGLE_1x1_NW
+
+#### TRIANGLE_1x1_SE
+
+#### TRIANGLE_1x1_SW
+
+#### HEXAGON_2x3
+
+#### HEXAGON_3x2
+
+#### HEXAGON_REGULAR_TALL
+
+#### HEXAGON_REGULAR_WIDE
