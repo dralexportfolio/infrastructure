@@ -8,17 +8,6 @@ The 'board_games' repository contains the building blocks needed for rendering g
 
 #### Board.\_\_init\_\_
 
-##### Description:
-
-##### Inputs:
-
-- n_polygons:int
-- all_polygons:list
-- x_shift_per_polygon:list
-- y_shift_per_polygon:list
-
-##### Outputs:
-
 #### Board. preprocessAllBevelInfo
 
 #### Board. preprocessAllSunInfo
