@@ -6,7 +6,7 @@ The 'board_games' repository contains the building blocks needed for rendering g
 
 ### Board Class
 
-#### Board.\__init__
+#### Board.\_\_init\_\_
 
 #### Board. preprocessAllBevelInfo
 
